@@ -20,6 +20,7 @@ This plugin solves that by shipping:
 - **Skill `kdcube`** — model-invoked. Triggers on KDCube concepts, `entrypoint.py` with platform decorators, and `kdcube.copilot@*` / `*.bundle@*` paths. Walks Claude through Q&A, bundle authoring, configuration, and runtime debugging.
 - **Slash command `/kdcube-docs:scaffold <bundle-name>`** — interactively generates a new bundle skeleton with the right shape for the surfaces you need.
 - **Slash command `/kdcube-docs:search <question>`** — fast, citation-backed doc lookup.
+- **SessionStart hook** — always-on belt. Injects ~150 tokens of MCP usage contract at session start so docs-first behavior fires even when the workflow skill's auto-trigger doesn't match the user's phrasing.
 
 ## First-run check
 

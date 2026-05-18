@@ -1,6 +1,6 @@
 {
   "name": "kdcube-docs",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "KDCube documentation MCP and workflow skill for Claude Code — grounds every KDCube answer in live docs.",
   "author": {
     "name": "KDCube",

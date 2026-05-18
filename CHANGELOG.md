@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-05-18
+
+### Added
+- SessionStart hook (`plugins/kdcube-docs/hooks/hooks.json` +
+  `plugins/kdcube-docs/hooks-handlers/session-start.sh`) that
+  unconditionally injects the kdcube-dev MCP usage contract into the
+  session's context. Always-on belt for the model-invoked
+  `kdcube-docs:kdcube` workflow skill — guarantees docs-first
+  behavior fires even when the skill's trigger description doesn't
+  match the user's phrasing. ~150 token tax per session.
+
 ## [0.2.0] - 2026-05-17
 
 ### Changed
