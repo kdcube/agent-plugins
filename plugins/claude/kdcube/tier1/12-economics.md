@@ -1,0 +1,242 @@
+---
+id: repo:kdcube-ai-app/app/ai-app/docs/sdk/bundle/bundle-economics-integration-README.md
+title: "Bundle Economics Integration"
+summary: "Practical guide for bundle authors wiring economics enforcement to chat turns, semantic search, background jobs, and task execution surfaces."
+tags: ["sdk", "bundle", "economics", "semantic-search", "accounting", "testing"]
+keywords:
+  [
+    "bundle economics integration",
+    "search_model_service",
+    "EconomicSearchModelService",
+    "semantic search economics",
+    "economics enforcement traces",
+    "memory search economics",
+    "canvas pin search economics",
+    "task tracker search economics",
+  ]
+updated_at: 2026-06-17
+see_also:
+  - repo:kdcube-ai-app/app/ai-app/docs/economics/economic-enforcement-engine-README.md
+  - repo:kdcube-ai-app/app/ai-app/docs/accounting/accounting-README.md
+  - repo:kdcube-ai-app/app/ai-app/docs/sdk/bundle/bundle-entrypoint-classes-README.md
+  - repo:kdcube-ai-app/app/ai-app/docs/sdk/bundle/build/how-to-assemble-bundle-with-sdk-building-blocks-README.md
+  - repo:kdcube-ai-app/app/ai-app/docs/sdk/bundle/build/how-to-test-bundle-README.md
+---
+# Bundle Economics Integration
+
+This page is the bundle-author entrypoint for economics enforcement. The
+canonical engine details live in
+[Economic Enforcement Engine](../../economics/economic-enforcement-engine-README.md);
+this page shows how a bundle wires the engine through SDK building blocks.
+
+## What Is Enforced
+
+| Surface | Existing bundle/example | Enforcement shape | Runtime result |
+| --- | --- | --- | --- |
+| Chat or agent turn | any entrypoint derived from `BaseEntrypointWithEconomics` | `BaseEntrypointWithEconomics.run(...)` reserves, binds accounting, runs the turn, and settles usage | turn is admitted, denied, or charged at the chat-run boundary |
+| Memory named-service search | workspace memory provider, namespace `mem` | provider receives `entrypoint.search_model_service(flow="memory.search")`; query embedding calls `embed_search_query(...)` | inside a chat turn, the query embedding is verify-only and charged by the parent turn; as standalone UI/API search, it reserves and settles under a `memory_search_<id>` operation; denial returns no query vector and memory search ranks with lexical/text factors |
+| Memory reconciliation | memory mixin reconciliation jobs | `EconomicsGuard(flow="memory.reconciler")` around the reconciliation job | job starts only after economics admission; job usage settles under the reconciliation scope |
+| Canvas pin search | canvas solution `CanvasPinSearch` | search service receives `entrypoint.search_model_service(flow="canvas.pins.search")`; hybrid index calls `embed_search_query(...)` | standalone pinboard search reserves and settles under a `canvas_pins_search_<id>` operation; denial skips the semantic arm and keeps lexical/recency ranking |
+| Task issue search | task tracker named-service scope `task` / `task:issue` | issue service receives `entrypoint.search_model_service(flow="task_tracker.issue.search")`; issue search calls `embed_search_query(...)` | inside a chat turn, the query embedding is charged by the parent turn; standalone issue search settles under a `task_tracker.issue.search` operation; denial falls back to lexical/recency ranking |
+| Task attachment search | task tracker named-service scope `task:attachment` | metadata scan over issue attachments and parent issue metadata | no semantic embedding spend is incurred; logs show `semantic_embedding=False` |
+| Custom searchable SDK component | any component that accepts a `model_service` | the entrypoint passes `search_model_service(flow="<your.surface>.search")` into the component; the component calls `embed_search_query(...)` | inside an active economics scope, the parent settles; outside one, the query embedding reserves and settles locally; denial falls back to lexical/recency ranking |
+| Automation execution | automations solution run-now / due execution, including `task-and-memo-app@1-0` and `user-automation@1-0` | automation preflight checks feasibility before enqueue/run; the actual ReAct work routes through the economics entrypoint | denied automations are cancelled before work; admitted automation ReAct work is charged by the economic entrypoint |
+| Automation list/search operations | automations solution lexical search in task-and-memo and user-automation | SQLite FTS5/BM25 only | no semantic embedding spend is incurred; no semantic search guard is needed for these APIs |
+
+## The Search Facade
+
+Searchable components should receive one dependency:
+
+```python
+model_service = self.search_model_service(flow="your.surface.search")
+```
+
+The component then calls:
+
+```python
+await model_service.embed_texts(docs)
+await model_service.embed_search_query(query, flow="your.surface.search")
+```
+
+`embed_texts(...)` is for document/index material and uses the underlying
+accounting-aware model service. `embed_search_query(...)` wraps the actual query
+embedding in `EconomicsGuard`, using the requested embedding provider/model and
+the accounting price table to size the reservation. When an active parent
+economics scope exists, the guard performs a verify-only check and the tracked
+embedding event stays in that parent accounting turn. Without a parent scope,
+the guard creates an operation scope and settles it locally.
+
+The reservation estimate is:
+
+```text
+reservation_usd = max(0.000001, estimated_tokens * embedding_tokens_1M / 1_000_000)
+estimated_tokens = max(16, chars / 4) per embedded query/text
+```
+
+For `openai/text-embedding-3-small` at `$0.02 / 1M tokens`, short queries usually
+reserve the `$0.000001` floor.
+
+## Implementation Recipes
+
+### Entrypoint With Economics
+
+For a chat/agent app:
+
+```python
+from kdcube_ai_app.apps.chat.sdk.solutions.chatbot.entrypoint_with_economic import (
+    BaseEntrypointWithEconomics,
+)
+
+
+class MyEntrypoint(BaseEntrypointWithEconomics):
+    ...
+```
+
+For an app that also mounts the memory subsystem:
+
+```python
+from kdcube_ai_app.apps.chat.sdk.solutions.chatbot.entrypoint_with_memory import (
+    BaseEntrypointWithEconomicsAndMemory,
+)
+
+
+class MyEntrypoint(BaseEntrypointWithEconomicsAndMemory):
+    ...
+```
+
+### Searchable SDK Component
+
+The bundle entrypoint creates the searchable service with the facade:
+
+```python
+service = MySearchService(
+    store=store,
+    model_service=self.search_model_service(flow="my_component.search"),
+)
+```
+
+The service uses the facade at query time:
+
+```python
+async def _query_embedding(self, query: str):
+    embed = getattr(self.model_service, "embed_search_query", None)
+    if callable(embed):
+        return await embed(query, flow="my_component.search")
+    return None
+```
+
+A `None` result means semantic ranking is unavailable for this call. Components
+with lexical recall continue with lexical/recency ranking. Components without a
+fallback surface the economics denial to the caller.
+
+### Background Or Job Flow
+
+For a background operation that performs paid work itself:
+
+```python
+async with EconomicsGuard(
+    self,
+    subject=subject,
+    scope_id=f"job_{job_id}",
+    flow="my_component.job",
+    estimate=EconomicsEstimate(reservation_usd=0.05),
+    policy=FlowPolicy(enforce_quota_lock=True),
+):
+    await run_paid_work()
+```
+
+When the job actor may be a linked/delegated identity, the job producer must
+carry the Connection Hub authority projection into the job envelope as
+`identity_authority`. Proc restores that snapshot into the runtime
+`ExternalEventPayload` and `bundle_call_context`. The bundle should keep its
+domain storage/provenance under the actor identity and let shared economics
+helpers project the billing/quota subject.
+
+Do not use `user_type` to decide economics authority or protected-surface
+visibility. Central SDK operation dispatch and Data Bus dispatch ignore
+`user_types`; use roles and authority/grant policy for authorization, and pass
+the carried `identity_authority` to shared economics helpers for quota/funding.
+If the actor is authenticated by Telegram, Slack, a delegated client, or another
+integration but is not projected to a platform/grantor identity, its runtime
+label is `external`; treat that as channel authentication only, not as platform
+registered/free quota.
+
+If the job opens a nested accounting scope directly, pass the projected
+authority envelope and the actor `user_id`. Do not derive or hardcode
+`economics_user_id` or billing authority in bundle code; those are handled inside
+the shared economics/accounting layer.
+
+```python
+async with with_accounting(
+    "my_component.background_model_call",
+    user_id=actor_user_id,
+    identity_authority=bundle_call_context.get("identity_authority"),
+    metadata={
+        "actor_user_id": actor_user_id,
+    },
+):
+    await run_paid_work()
+```
+
+For automation execution through the automations solution, the SDK already performs a
+verify-only start check and then routes ReAct execution through
+`BaseEntrypointWithEconomics.run(...)`, which owns the reservation and settlement
+for the actual agent work.
+
+## Existing Bundle Examples
+
+| Example | File | What To Look For |
+| --- | --- | --- |
+| Memory named-service search | `kdcube_ai_app/apps/chat/sdk/solutions/chatbot/entrypoint_with_memory.py` and `context/memory/named_service.py` | `_memory_named_service_provider(... model_service=self.search_model_service(flow="memory.search"))` and provider `_search_embedding(...)` |
+| Canvas pin search | `kdcube_ai_app/apps/chat/sdk/solutions/canvas/search/service.py` | `CanvasPinSearch._model_service()` resolving `entrypoint.search_model_service(flow=self.flow)` |
+| Generic hybrid index | `kdcube_ai_app/infra/index/sqlite/hybrid_index.py` | `_embed_query(...)` calling `model_service.embed_search_query(...)` and skipping semantic ranking when it returns `None` |
+| Enforcement core + search guard | `kdcube_ai_app/apps/chat/sdk/infra/economics/enforcement.py` and `infra/economics/search_guard.py` | the central enforcement state machine, and the `embed_search_query(...)` guard wrapper that reserves/settles per query and returns `None` on denial || Task execution economics | `kdcube_ai_app/apps/chat/sdk/solutions/tasks/operations.py` | `_task_verify_economics(...)` before execution and later ReAct work through the economics entrypoint |
+
+## Logs And Verification
+
+Economics enforcement emits centralized traces with the marker:
+
+```text
+[economics.enforcement]
+```
+
+Important stages:
+
+| Stage | Meaning |
+| --- | --- |
+| `preflight_start` / `preflight_ok` | verify-only check was evaluated |
+| `plan_resolved` | subject, plan, funding path, and estimate were resolved |
+| `admit` | quota admission ran and may have reserved plan tokens |
+| `reserve_ok` | funding reservation was created |
+| `accounting_bound` | accounting context was bound under the operation scope |
+| `accounting_run_start` / `accounting_run_done` | recorded usage was collected for settlement |
+| `settle_start` / `settle` | actual spend was settled and remaining reservation was released |
+| `deny` | economics rejected the operation |
+| `deny_cleanup` | reservations/locks are being released after a denial path |
+
+Filter examples:
+
+```bash
+rg "\\[economics\\.enforcement\\]" "$LOG_DIR"
+rg "memory.search|canvas.pins.search|task_tracker.issue.search|memory.reconciler|tasks" "$LOG_DIR"
+```
+
+Focused platform tests:
+
+```bash
+cd app/ai-app/src/kdcube-ai-app
+python -m pytest \
+  kdcube_ai_app/apps/chat/sdk/infra/economics/tests/test_enforcement.py \
+  kdcube_ai_app/apps/chat/sdk/infra/economics/tests/test_enforcement_memory_search.py \
+  kdcube_ai_app/infra/index/sqlite/tests/test_hybrid_index.py \
+  kdcube_ai_app/apps/chat/sdk/context/memory/tests/test_named_service.py \
+  kdcube_ai_app/apps/chat/sdk/examples/bundles/workspace@2026-03-31-13-36/tests/test_canvas_pin_search_wiring.py
+```
+
+Bundle tests should prove the concrete surface:
+
+- semantic search calls the economics-aware `model_service`;
+- economics denial produces the documented fallback or denial state;
+- lexical-only task searches remain deterministic and require no embedding
+  reservation;
+- background jobs record a denied/cancelled state before paid work starts.

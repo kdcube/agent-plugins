@@ -77,3 +77,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Naming convention documented in the root README: kebab-case with a
   `kdcube-` prefix for any future per-capability plugin
   (`kdcube-runtime`, `kdcube-bundles`, …).
+
+## 2026-07-23 — repository refocus
+
+- The repository becomes the home for KDCube agent tooling across ecosystems;
+  Claude Code plugins live under `plugins/claude/`.
+- `kdcube` v0.4.0 joins as the primary plugin: runtime init,
+  bundle scaffold/configure/test/release commands, operator + builder skills,
+  doc-reader subagent, offline Tier 1 docs pack, and awareness of the hosted
+  docs MCP at https://kdcube.tech/mcp/docs.
+- `kdcube-docs` (the early companion attempt) is removed; its docs-first idea
+  continues inside `kdcube`'s knowledge skills.

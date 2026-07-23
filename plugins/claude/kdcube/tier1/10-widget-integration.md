@@ -1,0 +1,1378 @@
+---
+id: repo:kdcube-ai-app/app/ai-app/docs/sdk/bundle/bundle-widget-integration-README.md
+title: "Bundle Widget Integration"
+summary: "Bundle widget UI contract: source-folder widget apps, runtime config handshake, operation URL construction, Data Bus publishing, auth propagation, and the recommended pattern when a capability is both widget and operation."
+tags: ["sdk", "bundle", "widget", "iframe", "frontend", "integrations", "telegram", "memory", "data-bus"]
+keywords: ["bundle widget contract", "iframe widget contract", "widget source folder", "static widget build", "runtime config handshake", "operation url construction", "data bus publishing", "auth propagation to widget", "widget and operation dual pattern", "shared sdk widget source", "telegram widget components", "memory widget component", "bundle widget integration"]
+updated_at: 2026-07-16
+see_also:
+  - repo:kdcube-ai-app/app/ai-app/docs/how-to-integrate-with-kdcube-apps-README.md
+  - repo:kdcube-ai-app/app/ai-app/docs/sdk/bundle/bundle-interfaces-README.md
+  - repo:kdcube-ai-app/app/ai-app/docs/sdk/bundle/bundle-subsystem-integration-README.md
+  - repo:kdcube-ai-app/app/ai-app/docs/sdk/bundle/bundle-properties-and-secrets-lifecycle-README.md
+  - repo:kdcube-ai-app/app/ai-app/docs/sdk/bundle/ui-components-lifecycle-README.md
+  - repo:kdcube-ai-app/app/ai-app/docs/sdk/bundle/bundle-platform-integration-README.md
+  - repo:kdcube-ai-app/app/ai-app/docs/sdk/bundle/bundle-client-ui-README.md
+  - repo:kdcube-ai-app/app/ai-app/docs/service/comm/client-transport-protocols-README.md
+  - repo:kdcube-ai-app/app/ai-app/docs/sdk/solutions/scene/scene-composition-README.md
+  - repo:kdcube-ai-app/app/ai-app/docs/sdk/solutions/scene/scene-event-orchestration-README.md
+  - repo:kdcube-ai-app/app/ai-app/docs/service/comm/conversation-event-bus-and-data-bus-README.md
+  - repo:kdcube-ai-app/app/ai-app/docs/service/comm/data-bus-README.md
+  - repo:kdcube-ai-app/app/ai-app/docs/service/cicd/cli-README.md
+  - repo:kdcube-ai-app/app/ai-app/docs/service/cicd/embedding-control-plane-frontend-README.md
+---
+# Bundle Widget Integration
+
+Use this doc when a bundle exposes widget UI that KDCube serves and that must
+call bundle operations correctly.
+
+A KDCube-served widget is one app integration shape. For the broader choice
+between iframe UI, direct host browser clients, host-server clients, and
+backend-only KDCube apps, start with
+[How To Integrate With KDCube Apps](../../how-to-integrate-with-kdcube-apps-README.md).
+
+When multiple widgets or app surfaces need to work together in one browser
+workspace, use [Scene Composition](../solutions/scene/scene-composition-README.md)
+as the canonical scene-building guide. A scene host owns the surface registry,
+config handshake, namespace presentation relay, local postMessage routing, and
+optional event-bus relay. Individual widgets still own their own rendering and
+domain commands.
+
+Core contract:
+
+- a widget must be declared as a bundle surface with `@ui_widget(...)`
+- `ui.widgets.<alias>` config tells the platform how to build and serve that
+  already-declared widget alias
+- new widget apps use source folders
+- KDCube serves the widget UI; the control plane/prototyping frontend may show
+  it in an iframe, but that is a display choice
+- the widget must request runtime config from the display environment
+- the widget must build bundle operation URLs from that runtime config
+- the widget should use Socket.IO `data_bus.publish` for durable non-chat
+  bundle-owned state changes
+- tenant, project, bundle id, and auth material come from runtime config
+
+If the widget belongs to an existing SDK subsystem, this widget contract is
+only one layer of the integration. Also wire the subsystem entrypoint
+surface, config, visibility, APIs, tools, event policies, resolvers, storage,
+and tests. Use [Bundle Subsystem Integration](bundle-subsystem-integration-README.md)
+before mounting shared UI such as memory or canvas.
+
+For the full lifecycle of discovery, preload, build, request-time fallback,
+shared-storage locks, signatures, and concurrent workers, see
+[UI Components Lifecycle](./ui-components-lifecycle-README.md).
+
+For mounted bundle source edits and descriptor-backed widget config changes,
+use the targeted bundle reload path described in
+[KDCube CLI / Bundle Reload Flow](../../service/cicd/cli-README.md#bundle-reload-flow).
+
+If the same widget or static bundle UI is embedded by an external website, the
+frame permission is controlled by operator deployment settings.
+Configure `proxy.frame_embedding` so the KDCube proxy clears
+`X-Frame-Options` and emits a CSP `frame-ancestors` allowlist on frameable
+bundle routes. See
+[Embedding The Control Plane Frontend](../../service/cicd/embedding-control-plane-frontend-README.md).
+For the integrator picture — embedding topologies (same-origin / same-site
+subdomain / cross-site) and how login/cookies work in each — see
+[Embedding KDCube In A Host App](../../service/cicd/embedding-kdcube-in-a-host-app-README.md).
+
+## Widget Data Bus Publishing
+
+Use Socket.IO `data_bus.publish` when a widget sends a durable bundle-owned
+domain message, for example a collaborative board patch, issue edit, or object
+annotation.
+This is a different contract from calling `/operations/...` and a different
+contract from sending a chat `external_events[]` submission.
+
+Client package shape:
+
+```ts
+const socket = manager.socket("/", { auth });
+
+socket.emit("data_bus.publish", {
+  schema: "kdcube.data_bus.ingress.v1",
+  bundle_id: runtime.defaultAppBundleId,
+  messages: [
+    {
+      subject: "example.document.patch",
+      object_ref: "document-123",
+      idempotency_key: clientOperationId,
+      payload: {
+        base_revision: currentRevision,
+        operations,
+      },
+    },
+  ],
+}, (ack) => {
+  // ack.status confirms stream acceptance, not handler completion
+})
+```
+
+Widget rules:
+
+- keep using the runtime config handshake for `baseUrl`, tenant, project,
+  bundle id, and auth material
+- connect Socket.IO on namespace `/` with the same authenticated runtime
+  identity used by the rest of the widget
+- for an app-specific public widget, call a bundle token-claim endpoint first;
+  the bundle validates the upstream identity and returns a short-lived
+  federated Data Bus token for the Socket.IO auth payload
+- include `messages[]`; it is plural even for one message
+- include `idempotency_key` for mutations
+- include `object_ref` when the handler declares `partition_by="object_ref"`
+- treat the Socket.IO ack as durable acceptance into the Data Bus stream
+- expect handler-not-found, handler-visibility, and domain failures to surface
+  from the proc-side handler path, not from the ingress ack
+- listen for handler replies through the existing `chat_service` event when the
+  handler uses `ctx.reply.*`
+- fetch the durable object state from normal bundle APIs after reconnect or
+  refresh
+
+Use `/operations/...` for direct request/response commands. Use Data Bus for
+state mutations that need durable processing, retry, and optional per-object
+serialization.
+
+Ingress authenticates and enqueues the package. Proc loads the bundle manifest,
+checks the active bundle/handler visibility rules, and invokes the
+`@data_bus_handler(...)`. Keep app-specific identity decoding in the bundle
+or Connection Hub token-claim endpoint; ingress should receive a platform
+session or standardized federated Data Bus token, not raw upstream app context.
+
+See:
+
+- [Conversation Event Bus And Data Bus](../../service/comm/conversation-event-bus-and-data-bus-README.md)
+- [Client Transport Protocols: Data Bus Contract](../../service/comm/client-transport-protocols-README.md#7-data-bus-contract)
+- [Data Bus](../../service/comm/data-bus-README.md)
+- [Bundle Federated Auth For Data Bus](auth-bundle-federated-README.md)
+
+## Widget Live Updates
+
+The inbound mirror of publishing is a server-side state change pushed to an
+open widget, so it updates without a manual refresh. This app primitive has two
+shapes:
+
+- **tenant/project broadcast** — the app emits `comm.project_event(...)`
+  (from crons, use a purpose-built scoped communicator rather than an ambient
+  one) and every opted-in viewer receives it;
+- **session-routed push** — the app registers the widget's authenticated
+  session against the subject it displays and emits one relay envelope per live
+  session when that subject changes.
+
+Widget rules:
+
+- broadcasts travel over SSE only; a standalone widget opens
+  `/sse/stream?project_events=true` with its runtime tenant/project. Socket.IO
+  does not carry them.
+- a scene-embedded widget claims its events once through
+  `kdcube-scene-subscribe` / `bindComponentEventSubscriptions` and lets the host
+  deliver them. The host owns the SSE relay leg for broadcasts.
+- support both paths and let the embed decide: own SSE only when top-level
+  (`window.parent === window`), while the scene claim is always registered.
+- filter received snapshots by `data_scope` when the collector serves multiple
+  data scopes.
+- on a change nudge, refetch the authoritative object instead of trusting the
+  inline snapshot, then reconcile in place. Apply every field the widget shows;
+  an in-progress user edit wins field by field.
+- keep broadcast debounce windows and change signatures in Redis for the whole
+  fleet, never in instance memory.
+
+The end-to-end emit/receive recipe and missing-update trace path are in
+[Live Widget Updates](../../recipes/dataflow/live-widget-updates-README.md).
+Shipped examples include the `kdcube.stats` usage widget (broadcast), the task
+tracker wizard/list (broadcast and both receive modes), and Connection Hub
+delegated access (session-routed).
+
+## Two Contracts: Surface And Build Config
+
+Bundle widgets have two separate contracts that must align by alias.
+
+1. **Surface contract**
+
+   The bundle class exposes a method decorated with `@ui_widget(...)`.
+   Discovery reads this decorator and places the alias in the bundle interface
+   manifest. The control plane widget toolbar, widget visibility checks, and
+   widget route resolution all start from this manifest.
+
+   ```python
+   @api(alias="telegram_miniapp_widget", route="operations")
+   @ui_widget(
+       alias="telegram_miniapp",
+       icon={"lucide": "PanelTop", "tailwind": "heroicons-outline:rectangle-group"},
+   )
+   def telegram_miniapp_widget(self, **kwargs):
+       ...
+   ```
+
+2. **Build/serve contract**
+
+   Bundle defaults or deployment descriptor props define
+   `ui.widgets.<same_alias>`. This tells the platform that the alias is
+   served as a built static app from a source folder.
+
+   ```yaml
+   ui:
+     widgets:
+       telegram_miniapp:
+         enabled: true
+         src_folder: ui/widgets/telegram_miniapp
+         build_command: npm install --no-package-lock && OUTDIR=<VI_BUILD_DEST_ABSOLUTE_PATH> npm run build
+   ```
+
+If the decorator exists but `ui.widgets.<alias>` is absent, the widget
+is a method-rendered widget: the route invokes the decorated Python method and
+returns its payload.
+
+If the decorator exists and `ui.widgets.<alias>` has an active `src_folder` and
+`build_command`, the static widget app takes precedence. In that case the
+decorated Python method is still required for discovery, visibility, and route
+resolution, but it is not the UI that the browser receives. The method body may
+be a small placeholder for legacy/fallback cases.
+
+Source-folder builds currently run through the bundle UI build machinery
+provided by the `BaseEntrypoint` class family. If a bundle exposes buildable
+widgets, the entrypoint class must either inherit a concrete `BaseEntrypoint`
+family class, such as `BaseEntrypoint`, `BaseEntrypointWithEconomics`,
+`BaseEntrypointWithMemory`, or `BaseEntrypointWithEconomicsAndMemory`, or
+implement the equivalent `_ensure_ui_build(...)` contract. A plain workflow
+class with `@ui_widget(...)` decorators can declare widget surfaces, but it
+will not build or refresh source-folder widget artifacts unless that build
+contract exists. See
+[Bundle Entrypoint Classes](./bundle-entrypoint-classes-README.md).
+
+If `ui.widgets.<alias>` exists but the `@ui_widget(alias="<alias>")`
+surface is missing, the static config is ignored for widget routing. A direct
+widget request should fail with a missing-widget response because the platform
+does not treat config-only entries as user-visible widget surfaces.
+
+Use `enabled.widget.<alias>: false` to hide or disable a decorated widget alias.
+This is separate from `ui.widgets.<alias>.enabled`, which controls
+whether a static build config is active for that alias.
+
+## Inherited Widget Aliases
+
+Entrypoint classes commonly inherit widgets from SDK or platform base classes.
+Those inherited `@ui_widget(...)` methods are normal bundle surfaces: they are
+discovered through the class MRO, listed in the manifest, and can be served
+unless disabled by effective bundle props.
+
+To suppress an inherited widget without changing code, disable the surface:
+
+```yaml
+config:
+  enabled:
+    widget:
+      memories: false
+```
+
+This setting controls only the source-folder build config:
+
+```yaml
+config:
+  ui:
+    widgets:
+      memories:
+        enabled: false
+```
+
+It disables the static app config for alias `memories`. The widget surface
+remains governed by `enabled.widget.memories`.
+
+To replace an inherited widget UI while keeping the inherited surface, configure
+the same alias as a source-folder widget:
+
+```yaml
+config:
+  ui:
+    widgets:
+      memories:
+        enabled: true
+        src_folder: ui/widgets/my-memory-widget
+        build_command: npm install --no-package-lock && OUTDIR=<VI_BUILD_DEST_ABSOLUTE_PATH> npm run build
+```
+
+The inherited `@ui_widget(alias="memories")` still declares the surface, while
+the static app at `ui/widgets/my-memory-widget` becomes the served UI.
+
+If code must override the decorator metadata itself, override the same Python
+method name in the child class:
+
+```python
+class MyEntrypoint(BaseEntrypointWithMemory):
+    @ui_widget(alias="memories", icon={"lucide": "NotebookText"})
+    async def memories_widget(self, **kwargs):
+        ...
+```
+
+Override the inherited Python method when decorator metadata must change.
+Duplicate widget aliases are invalid and manifest discovery raises a
+duplicate-alias error.
+
+## Reusing SDK Widget Components
+
+Reusable SDK widget UI is a build-time source materialization contract. The
+loader copies selected SDK source folders into the consuming widget's temporary
+build workspace, then the widget build imports that materialized local source.
+Each consuming bundle produces its own built widget artifact under that
+bundle's storage root.
+
+When a bundle widget imports SDK UI such as User Memory or Telegram
+admin/channels panels, these three places must agree:
+
+1. **Bundle defaults or descriptor props**
+
+   The widget config must declare `shared_sources` for every SDK UI source the
+   widget imports.
+
+   ```yaml
+   ui:
+     widgets:
+       copilot_webapp:
+         enabled: true
+         src_folder: ui/widgets/copilot_webapp
+         build_command: npm install --no-package-lock && OUTDIR=<VI_BUILD_DEST_ABSOLUTE_PATH> npm run build
+         shared_sources:
+           memory_widget:
+             src_folder: sdk://context/memory/ui/widget/memories
+             target: _shared/memory-widget
+           telegram_widget:
+             src_folder: sdk://integrations/telegram/ui/widget.telegram
+             target: _shared/telegram-widget
+   ```
+
+2. **Widget Vite aliases**
+
+   The widget build resolves public import names to the materialized
+   `_shared/...` folders. A monorepo fallback may be present for direct local
+   development before the loader materializes shared sources.
+
+   ```ts
+   '@kdcube/memory-widget': memoryWidgetEntry
+   '@kdcube/telegram-widget': telegramWidgetEntry
+   ```
+
+3. **Widget page wrappers**
+
+   The bundle imports shared components and injects its own operation caller.
+   Runtime config supplies tenant/project/bundle ids and auth headers.
+
+   ```tsx
+   import { TelegramAdminPanel } from '@kdcube/telegram-widget';
+   import { callOperation } from './store/apiClient';
+
+   export function TelegramAdminPage() {
+     return <TelegramAdminPanel callOperation={callOperation} />;
+   }
+   ```
+
+For built-in/reference bundles, keep `src_folder`, `build_command`, and
+required `shared_sources` in `configuration_defaults()` so workflow-side code
+and rebuild hooks have stable defaults.
+
+Current route-time widget serving evaluates effective bundle props after code
+defaults and descriptor/admin props are merged. That means intrinsic widget
+source/build values may live in `configuration_defaults()`, while descriptors
+carry only deployment overrides. Descriptors may still repeat `src_folder` and
+`build_command` when a seed file must be self-documenting or when an older
+runtime has to be supported. For the exact merge/materialization rules, see
+[Bundle Properties And Secrets Lifecycle](./bundle-properties-and-secrets-lifecycle-README.md).
+
+If the build fails with a path like this:
+
+```text
+Could not load /integrations/telegram/ui/widget.telegram/src/index.tsx
+Could not load /context/memory/ui/widget/memories/src/embed.tsx
+```
+
+then the widget imported a shared SDK component, but the matching
+`shared_sources` entry was missing, had the wrong `target`, or did not get into
+the effective bundle props. Fix the widget config/defaults first; do not patch
+the built temp directory or hardcode an absolute developer-machine path.
+
+## Source Folder Widget Apps
+
+For new React/Vite widgets, keep widget app source under a widget-specific
+folder such as:
+
+```text
+ui/widgets/<widget_alias>/
+  package.json
+  index.html
+  vite.config.js
+  src/
+```
+
+Do not put widget source under `ui/main`. In KDCube docs and examples, `ui/main`
+is the convention for a bundle main view declared by `ui.main_view`.
+
+Declare the widget source in bundle configuration:
+
+```yaml
+ui:
+  widgets:
+    task_memo_webapp:
+      enabled: true
+      src_folder: ui/widgets/task_memo_webapp
+      build_command: npm install --no-package-lock && OUTDIR=<VI_BUILD_DEST_ABSOLUTE_PATH> npm run build
+      # Optional: copy SDK/platform UI source into the temporary build workspace.
+      # This works for external-git bundles because the bundle imports the
+      # materialized `_shared/...` path, not a developer-machine monorepo path.
+      shared_sources:
+        memory_widget:
+          src_folder: sdk://context/memory/ui/widget/memories
+          target: _shared/memory-widget
+        telegram_widget:
+          src_folder: sdk://integrations/telegram/ui/widget.telegram
+          target: _shared/telegram-widget
+```
+
+Build command contract:
+
+- `<VI_BUILD_DEST_ABSOLUTE_PATH>` is the loader-provided temporary output
+  directory
+- the platform injects it through `OUTDIR`,
+  `VI_BUILD_DEST_ABSOLUTE_PATH`, and `VITE_BUILD_DEST_ABSOLUTE_PATH`
+- the widget build system must treat it as an output directory, not as a Vite
+  positional build argument
+- for Vite, configure `build.outDir` from `process.env.OUTDIR`
+- for Vite, `base: './'` is required so built assets are relative to the
+  widget route; the same rule applies to bundle main views under `ui/main`
+
+Minimal Vite config:
+
+```ts
+export default defineConfig({
+  base: './',
+  build: {
+    outDir: process.env.OUTDIR || 'dist',
+    emptyOutDir: true,
+  },
+})
+```
+
+Check the built `index.html`. It must reference assets with relative paths:
+
+```html
+<script type="module" src="./assets/index-....js"></script>
+<link rel="stylesheet" href="./assets/index-....css">
+```
+
+If Vite emits root-relative assets such as `/assets/index-....js`, the widget
+iframe can appear blank because the browser requests assets from the KDCube app
+root instead of:
+
+```text
+/api/integrations/bundles/{tenant}/{project}/{bundle_id}/widgets/{widget_alias}/assets/...
+```
+
+Fix this in the widget's Vite config with `base: './'`; do not work around it
+by copying assets or hardcoding bundle routes.
+
+Do not put the destination path after `vite build`.
+
+Wrong:
+
+```json
+{
+  "scripts": {
+    "build": "vite build <VI_BUILD_DEST_ABSOLUTE_PATH>"
+  }
+}
+```
+
+Correct:
+
+```json
+{
+  "scripts": {
+    "build": "vite build"
+  }
+}
+```
+
+If the loader log or npm output shows:
+
+```text
+vite build /.../.ui.build.tmp...
+```
+
+then the output path leaked into the command as a positional argument. Vite will
+treat it as the project root/entry and may fail with:
+
+```text
+[UNRESOLVED_ENTRY] Cannot resolve entry module .../.ui.build.tmp.../index.html
+```
+
+Fix the widget build contract; do not manually copy built files into bundle
+storage.
+
+The bundle loader builds that source folder into shared bundle storage under:
+
+```text
+<bundle_storage_root>/ui/widgets/<widget_alias>
+```
+
+### Build Signature & Cache
+
+To avoid rebuilding unchanged sources on every bundle load, the loader
+maintains a **build signature** per UI app and compares it to a stored
+signature before deciding to rebuild. A matching signature produces:
+
+```text
+[bundle.ui] widget:<alias> skipped: signature cache hit
+```
+
+in the chat-proc logs and means the existing built artifacts under
+`<bundle_storage_root>/ui/widgets/<alias>` are reused as-is. A mismatch
+triggers a full rebuild via `build_command`.
+
+**What goes into the signature**:
+
+- `kind` — `main-view` or `widget:<safe_alias>`
+- `src_path` — absolute path of the resolved source folder
+- `build_command` — the exact command string from the widget config (after
+  `<VI_BUILD_DEST_ABSOLUTE_PATH>` placeholder substitution)
+- `bundle_delivery_id` — the bundle id from the active spec
+- a sha256 over the source tree: each file's `relative_path + "\0" + size +
+  "\0" + mtime_ns`, plus the same for every `shared_sources` source folder
+  declared on the widget config
+
+**What is ignored** when hashing the source tree:
+
+- directories: `node_modules`, `.git`, `dist`, `build`, `.vite`,
+  `.vite-temp`, `__pycache__`
+- file suffixes: `.tsbuildinfo`
+- generated `*.js` / `*.jsx` files (and their `.map` siblings) when a
+  matching `*.ts` / `*.tsx` source file exists in the same directory — these
+  are loader output shadows, not source
+
+**Where signatures live**:
+
+- main view: `<bundle_storage_root>/.ui.signature`
+- per widget: `<bundle_storage_root>/.ui.widgets/<safe_alias>.signature`
+  (where `safe_alias` is the widget alias with `/` → `_`)
+
+**How to force a rebuild**:
+
+- `touch` any non-ignored file under the widget's `src_folder` (changes
+  `mtime_ns` → changes the signature)
+- change anything in `build_command` (e.g. add a no-op flag)
+- delete the signature file directly:
+  `rm <bundle_storage_root>/.ui.widgets/<safe_alias>.signature`
+- bump the bundle id (rarely useful for local development)
+
+**Concurrency**: startup preload is coordinated through Redis app-generation
+claims, so workers on ECS can divide app preload work instead of all taking the
+same app. The UI build itself still runs inside a shared-storage lock keyed by
+the bundle storage root, so request-time fallback and any missed preload case
+remain safe on EFS. Workers that arrive after the signature was written hit the
+cache and skip the build.
+
+The widget route serves the built app and supports SPA subpath fallback:
+
+```text
+GET /api/integrations/bundles/{tenant}/{project}/{bundle_id}/widgets/{widget_alias}
+GET /api/integrations/bundles/{tenant}/{project}/{bundle_id}/widgets/{widget_alias}/{widget_path}
+```
+
+For Telegram Mini Apps or other public launch surfaces where the static widget
+app must load before platform auth exists, use the public static-widget route:
+
+```text
+GET /api/integrations/bundles/{tenant}/{project}/{bundle_id}/public/widgets/{widget_alias}
+GET /api/integrations/bundles/{tenant}/{project}/{bundle_id}/public/widgets/{widget_alias}/{widget_path}
+```
+
+The public route is selected by URL. `@ui_widget(...)` declares the widget
+surface once; `ui.widgets.<widget_alias>` declares how to build it. The same
+built widget app is available through the authenticated `/widgets/...` route
+and the public `/public/widgets/...` route.
+
+Widget visibility still applies. A public Mini App widget should leave
+`roles` empty and allow the public/anonymous session used by the static route.
+
+That route serves only the built widget app assets. Any public data/action API
+used by that widget must have its own bundle-level auth, for example Telegram
+WebApp `initData` verification or a standardized federated Data Bus token.
+
+## Dual Runtime Pattern
+
+When the same widget app runs in KDCube control plane and inside a Telegram Mini
+App host, keep one frontend contract: the widget asks its host for runtime
+config and sends backend requests to the configured KDCube app.
+
+KDCube control-plane runtime:
+
+- wait for `CONFIG_RESPONSE` or `CONN_RESPONSE`
+- use `baseUrl`, `defaultTenant`, `defaultProject`, `defaultAppBundleId`
+- call `/operations/{alias}`
+- pass KDCube auth headers from runtime config
+
+Telegram-hosted iframe runtime:
+
+- the Telegram host reads `window.Telegram.WebApp.initData`
+- the hosted widget still sends `CONFIG_REQUEST`
+- the host gets `authContext.headers` from its backend, adds browser-owned
+  `initData` only when that template declares Telegram as the provider, and
+  answers the same `CONFIG_RESPONSE` / `CONN_RESPONSE` with normal runtime
+  config plus that header map
+- the widget calls `/operations/{alias}` and blindly promotes
+  `authContext.headers` on backend requests
+- `kdcube-auth-changed` is the refresh signal; the widget re-sends
+  `CONFIG_REQUEST`
+
+This route lets gateway auth invoke the Connection Hub request-auth bridge:
+
+```text
+widget /operations/{alias}
+  + authContext.headers
+  -> gateway request-auth selector
+  -> Connection Hub provider module
+  -> linked platform authority
+  -> operation visibility / roles / economics
+```
+
+Use `/public/{telegram_alias}` only when an app explicitly owns a
+Telegram-specific public API and documents that API as separate from the
+generic gateway-auth path. In that case, keep the API aliases explicit:
+
+```ts
+const telegramAliases: Record<string, string> = {
+  task_memo_webapp_data: "telegram_task_memo_webapp_data",
+  tasks_list: "telegram_tasks_list",
+  tasks_create: "telegram_tasks_create",
+  run_task_now: "telegram_run_task_now",
+};
+```
+
+The public widget route may load static assets; it does not by itself choose the
+data/action auth path. Do not trust caller-supplied `user_id` or `fingerprint`
+in Telegram mode.
+
+Use `npm ci` in `build_command` when the widget source commits a lockfile. For
+early prototype widgets without a lockfile, `npm install --no-package-lock`
+avoids mutating the source folder during loader builds.
+
+For multiple buildable widgets, repeat the same contract per alias:
+
+```yaml
+ui:
+  widgets:
+    first_widget:
+      enabled: true
+      src_folder: ui/widgets/first_widget
+      build_command: npm install --no-package-lock && OUTDIR=<VI_BUILD_DEST_ABSOLUTE_PATH> npm run build
+    second_widget:
+      enabled: true
+      src_folder: ui/widgets/second_widget
+      build_command: npm install --no-package-lock && OUTDIR=<VI_BUILD_DEST_ABSOLUTE_PATH> npm run build
+```
+
+Each widget source folder needs its own `package.json` and build config that
+honors `OUTDIR`. One working widget does not prove the second widget's Vite
+config is correct.
+
+The decorated `@ui_widget(...)` method remains the widget discovery/manifest
+surface. Product behavior and data mutations should live behind separate
+structured `@api(route="operations")` methods that the widget calls.
+
+### Per-Alias Selection
+
+Source-folder serving is selected per widget alias.
+
+This config affects only `task_memo_webapp`:
+
+```yaml
+ui:
+  widgets:
+    task_memo_webapp:
+      enabled: true
+      src_folder: ui/widgets/task_memo_webapp
+      build_command: npm install --no-package-lock && OUTDIR=<VI_BUILD_DEST_ABSOLUTE_PATH> npm run build
+```
+
+Other inherited widget aliases such as `ai_bundles`, `opex`, or other
+`@ui_widget` methods on a base class keep their own serving mode. They invoke
+their Python method and return method-rendered HTML until that same alias has
+its own `src_folder` and `build_command`.
+
+Add `ui.widgets.<alias>.src_folder/build_command` when that alias is moving to
+the folder-built widget model.
+
+## Main View Is Separate
+
+Use these source conventions:
+
+- `ui.main_view.src_folder: ui/main` for the bundle main view
+- `ui.widgets.<alias>.src_folder: ui/widgets/<alias>` for widget apps
+
+Both use the same loader/build/storage paradigm. They are different surfaces.
+
+## Shared UI Source Materialization
+
+Some bundle widgets reuse SDK UI code by declaring `shared_sources` on the
+widget or main-view build. The builder copies each selected source into the
+temporary build source tree before running `npm install` / `npm run build`.
+
+Ownership rule:
+
+- bundle code defaults should declare the widget's `src_folder`,
+  `build_command`, and required SDK `shared_sources`
+- descriptors should normally only set deployment policy such as
+  `enabled: true` and provider URLs/secrets
+- descriptor-level `shared_sources` is available for explicit local testing or
+  deployment overrides
+- built-in/reference bundles should keep intrinsic UI source wiring in code
+  defaults
+
+Runtime flow:
+
+```text
+bundle defaults / descriptor props
+  -> ui.widgets.<alias>.shared_sources
+  -> loader copies sdk://... into this bundle's widget temp source under _shared/...
+  -> Vite alias resolves @kdcube/<capability>-widget to _shared/...
+  -> one built widget app is served from this bundle's storage root
+```
+
+```yaml
+ui:
+  widgets:
+    telegram_miniapp:
+      src_folder: ui/widgets/telegram_miniapp
+      build_command: npm install --no-package-lock && OUTDIR=<VI_BUILD_DEST_ABSOLUTE_PATH> npm run build
+      shared_sources:
+        memory_widget:
+          src_folder: sdk://context/memory/ui/widget/memories
+          target: _shared/memory-widget
+        telegram_widget:
+          src_folder: sdk://integrations/telegram/ui/widget.telegram
+          target: _shared/telegram-widget
+```
+
+The widget can then import from its materialized local path, for example through
+a Vite alias that points to `_shared/memory-widget/src/embed.tsx` or
+`_shared/telegram-widget/src/index.tsx`.
+
+Current SDK-owned shared widget sources:
+
+| Capability | `sdk://` source | Usual target | Typical import |
+| --- | --- | --- | --- |
+| User Memory widget | `sdk://context/memory/ui/widget/memories` | `_shared/memory-widget` | `@kdcube/memory-widget` |
+| Telegram admin/channels panels | `sdk://integrations/telegram/ui/widget.telegram` | `_shared/telegram-widget` | `@kdcube/telegram-widget` |
+
+Supported source path forms:
+
+- `sdk://...` resolves under the installed KDCube SDK package.
+- `bundle://...` resolves under the bundle root.
+- relative paths resolve under the bundle root.
+- source-folder absolute paths are only for direct local testing. They are not
+  storage roots and should not be used in reusable descriptors.
+
+The build signature includes both the bundle source tree and all shared source
+trees, so updating the shared component triggers a rebuild.
+
+### Build And Storage Scope
+
+`shared_sources` materialization is scoped to the consuming bundle and widget
+alias. For a widget alias `<alias>` in bundle `<bundle_id>`, the build output
+lives under:
+
+```text
+<bundle_storage_root>/<tenant>/<project>/<bundle_id>/ui/widgets/<alias>
+```
+
+The build uses temporary source and output folders under the same bundle storage
+root. The temporary source contains the widget source plus materialized
+`_shared/...` sources and the package manager working files needed for that
+build. After a successful build, the served artifact is the static widget
+output and the per-alias signature file:
+
+```text
+<bundle_storage_root>/<tenant>/<project>/<bundle_id>/ui/widgets/<alias>/
+<bundle_storage_root>/<tenant>/<project>/<bundle_id>/.ui.widgets/<alias>.signature
+```
+
+The same SDK source reused by three bundles produces three built widget
+artifacts, one in each bundle's storage root. This keeps widget routing,
+runtime config, authorization, and rebuild signatures aligned with the bundle
+that exposes the widget.
+
+### Platform Admin Widgets
+
+Platform-wide admin applications belong in the built-in admin bundle
+`kdcube.admin`. This keeps cross-bundle operator tooling in one admin-only
+surface and gives the widget one build/storage lifecycle.
+
+Use this placement for system-level tools such as bundle registry management,
+gateway/Redis inspection, and bundle storage administration:
+
+```text
+kdcube.admin
+  @ui_widget(alias="bundle_storage", user_types=("privileged",))
+  ui.widgets.bundle_storage.src_folder = ui/storage
+  built output = <bundle_storage_root>/<tenant>/<project>/kdcube.admin/ui/widgets/bundle_storage
+```
+
+Bundle-specific widgets belong in the bundle that owns the product workflow or
+data surface. Shared SDK UI components can still be materialized into those
+bundle-specific widgets with `shared_sources`.
+
+## Advanced: Hybrid Widget Composition
+
+The `shared_sources` pattern is hybrid widget composition. It keeps the bundle
+repo small while producing a single React tree at build time. The platform
+materializes selected SDK source into the temporary build workspace, and the
+bundle web app imports that materialized source as local source.
+
+Use this pattern for:
+
+- the user experience should be one app surface
+- the reusable UI is platform-owned SDK code
+- the bundle may live in an external git repository
+- source paths should resolve through `sdk://...` and materialized `_shared/...`
+
+Example host widget config:
+
+```yaml
+ui:
+  widgets:
+    telegram_miniapp:
+      enabled: true
+      src_folder: ui/widgets/telegram_miniapp
+      build_command: npm install --no-package-lock && OUTDIR=<VI_BUILD_DEST_ABSOLUTE_PATH> npm run build
+      shared_sources:
+        memory_widget:
+          src_folder: sdk://context/memory/ui/widget/memories
+          target: _shared/memory-widget
+        telegram_widget:
+          src_folder: sdk://integrations/telegram/ui/widget.telegram
+          target: _shared/telegram-widget
+```
+
+Example Vite alias in the host widget:
+
+```ts
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const materializedMemoryWidget = path.resolve(__dirname, '_shared/memory-widget/src/embed.tsx');
+const materializedTelegramWidget = path.resolve(__dirname, '_shared/telegram-widget/src/index.tsx');
+const sdkMemoryWidget = path.resolve(
+  __dirname,
+  '../../../../../../context/memory/ui/widget/memories/src/embed.tsx',
+);
+const sdkTelegramWidget = path.resolve(
+  __dirname,
+  '../../../../../../integrations/telegram/ui/widget.telegram/src/index.tsx',
+);
+const memoryWidgetEntry = fs.existsSync(materializedMemoryWidget)
+  ? materializedMemoryWidget
+  : sdkMemoryWidget;
+const telegramWidgetEntry = fs.existsSync(materializedTelegramWidget)
+  ? materializedTelegramWidget
+  : sdkTelegramWidget;
+
+export default defineConfig({
+  plugins: [react()],
+  base: './',
+  resolve: {
+    alias: {
+      '@kdcube/memory-widget': memoryWidgetEntry,
+      '@kdcube/telegram-widget': telegramWidgetEntry,
+    },
+  },
+  build: {
+    outDir: process.env.OUTDIR || 'dist',
+    emptyOutDir: true,
+  },
+});
+```
+
+The fallback path is only for SDK-local development, where the developer builds
+the host widget directly from the monorepo before the platform materializes
+`_shared/...`. Reusable descriptors should rely on `sdk://...`, not on that
+fallback path.
+
+Example host component:
+
+```tsx
+import { MemoriesWidgetEmbed } from '@kdcube/memory-widget';
+import { TelegramAdminPanel, TelegramConversationsPanel } from '@kdcube/telegram-widget';
+
+import { callOperation } from './store/apiClient';
+
+export function MemoryPage() {
+  return <MemoriesWidgetEmbed />;
+}
+
+export function TelegramAdminPage() {
+  return <TelegramAdminPanel callOperation={callOperation} />;
+}
+
+export function ConversationsPage({ conversations, reload }) {
+  return (
+    <TelegramConversationsPanel
+      conversations={conversations}
+      reload={reload}
+      callOperation={callOperation}
+    />
+  );
+}
+```
+
+Operational rules:
+
+- the shared source is copied into the temporary build workspace
+- the host widget `package.json` must include the runtime dependencies required
+  by the shared component
+- the copied source is included in the UI build signature, so changes to SDK
+  shared source trigger a rebuild
+- the shared component still calls bundle APIs through the normal runtime config
+  or public bridge
+- tenant, project, bundle id, and host routes come from runtime config or the
+  injected operation caller
+- use a wrapper/export component in the shared source, such as `src/embed.tsx`,
+  when the shared widget needs style isolation or its own provider tree
+- backend operations enforce KDCube roles, Telegram `initData`, and Telegram
+  registry roles
+- for Telegram Mini App panels, expose the same source-folder widget in KDCube
+  and Telegram, but gate admin tabs from backend payload such as
+  `permissions.show_admin_component`; regular users should still be able to use
+  non-admin panels such as memories and chat/channel selection
+- shared Telegram panels accept an injected operation caller so each host
+  widget can map logical operations to KDCube-authenticated or Telegram-public
+  aliases without duplicating panel UI
+
+## Required Runtime Config
+
+The widget should request these fields from the runtime display environment:
+
+- `baseUrl`
+- `accessToken`
+- `idToken`
+- `idTokenHeader`
+- `defaultTenant`
+- `defaultProject`
+- `defaultAppBundleId`
+- `authContext`
+
+### Tolerated Alternate Keys
+
+A widget loaded in different host contexts (control plane, embedded
+iframe, Telegram Mini App, public widget route) can receive the runtime
+config payload under slightly different key names. The widget **must**
+accept all of the following alternates when reading the payload, falling
+back left-to-right within each group:
+
+| Logical field | Canonical key | Alternates accepted |
+| --- | --- | --- |
+| Tenant | `defaultTenant` | `tenant`, `tenant_id` |
+| Project | `defaultProject` | `project`, `project_id` |
+| ID-token header name | `idTokenHeader` | `idTokenHeaderName`, `auth.idTokenHeaderName` |
+| Base URL | `baseUrl` | (no alternate) |
+| Access token | `accessToken` | (no alternate; preserve explicit `null`) |
+| ID token | `idToken` | (no alternate; preserve explicit `null`) |
+| App bundle id | `defaultAppBundleId` | (no alternate in the runtime-config payload; URL params accept `bundle_id` or `bundleId`) |
+| Host auth context | `authContext.headers` | provider-specific headers are opaque to the widget |
+
+Reference widgets should read:
+
+```ts
+const tenant  = config.defaultTenant  || config.tenant  || config.tenant_id;
+const project = config.defaultProject || config.project || config.project_id;
+const idHdr   = config.idTokenHeader
+             || config.idTokenHeaderName
+             || config.auth?.idTokenHeaderName
+             || existing;
+// access/id tokens use `??` so explicit null is preserved
+const accessToken = config.accessToken ?? existing;
+const idToken     = config.idToken     ?? existing;
+```
+
+When the widget is launched via a route that encodes the bundle id as a URL
+query param, accept either spelling:
+
+```ts
+const bundleId = params.get('bundle_id') || params.get('bundleId');
+```
+
+### Tolerated Response Event Types
+
+The widget must accept both response event types from the `postMessage`
+runtime-config handshake:
+
+- `CONN_RESPONSE`
+- `CONFIG_RESPONSE`
+
+Both are used in the platform today. Do not listen only for `CONFIG_RESPONSE`.
+
+## Frame Origin And API Base URL
+
+Widget API calls must be anchored to the KDCube-hosted frame origin, not to the
+top-level page that may be embedding KDCube.
+
+Browser URL resolution is frame-local:
+
+```text
+https://host-app.example.net
+  iframe src="https://kdcube.example.com/platform/chat"
+    KDCube frontend frame:
+      window.location.origin == "https://kdcube.example.com"
+      fetch("/api/...")     -> "https://kdcube.example.com/api/..."
+
+      nested bundle widget frame:
+        baseUrl from /api/cp-frontend-config or CONFIG_REQUEST
+          == "https://kdcube.example.com"
+        operation call -> "https://kdcube.example.com/api/..."
+```
+
+This means a normal embedded deployment works when the host application frames
+the KDCube frontend by URL:
+
+```html
+<iframe src="https://kdcube.example.com/platform/chat"></iframe>
+```
+
+The widget must never use `window.top.location`, `document.referrer`, or a
+caller-provided host-page URL as its API base. Those values can point to the
+embedding application, for example `https://host-app.example.net`, and would
+make the widget call `https://host-app.example.net/api/...` by mistake.
+
+Correct base URL selection:
+
+- first fetch `/api/cp-frontend-config` from the widget frame origin and use
+  its `baseUrl` when it returns usable runtime config
+- if that endpoint is unavailable, use `baseUrl` received from the KDCube
+  runtime config handshake
+- if no runtime config is available, fall back to `window.location.origin` from
+  the widget frame itself
+- if the widget route contains tenant/project/bundle, use that route only as a
+  scope fallback, not as proof that the host-page origin is the API origin
+
+The KDCube control-plane runtime sends `baseUrl` from its own frame origin. A
+widget rendered by `srcDoc` still runs under the KDCube frontend frame origin;
+a widget loaded by `src` from `/api/integrations/.../widgets/...` also runs
+under the KDCube origin. In both cases, root-relative URLs and
+runtime-provided `baseUrl` must resolve to the hosted KDCube domain.
+
+## Frame Resize Contract
+
+A parent page from another origin cannot read the widget iframe DOM to measure
+`scrollHeight` or `scrollWidth`. Cross-origin sizing must be cooperative.
+
+KDCube-hosted static bundle UI and widget HTML entrypoints inject a resize
+reporter before serving `index.html`. The reporter posts:
+
+```js
+window.parent.postMessage({
+  type: 'kdcube-resize',
+  height: measuredContentHeight,
+  width: optionalOverflowWidth,
+  contentWidth: measuredContentWidth,
+  viewportWidth: currentFrameViewportWidth,
+}, '*');
+```
+
+The actual server-injected reporter measures the maximum document/body
+scroll/client/offset dimensions, debounces short layout bursts, and sends:
+
+- `height`: the content height the parent should apply to the iframe
+- `width`: non-zero only when content overflows the current iframe viewport
+- `contentWidth`: measured content width for diagnostics
+- `viewportWidth`: the iframe viewport width observed by the embedded document
+- `seq`: monotonic sequence number from the reporter instance
+- `reason`: trigger that produced the measurement
+
+It runs on load, window resize, DOM changes, resize observations, and short
+delayed retries.
+
+The parent must provide normal iframe width with CSS, for example
+`width: 100%`. Do not set `iframe.style.width` from every `kdcube-resize`
+message. That creates a width feedback loop: an early narrow measurement can be
+applied as the real iframe width, the widget reflows into a narrow layout, and
+the final height becomes genuinely large. Use the message `width` only as an
+optional `min-width` signal when it is greater than the current iframe width.
+
+For diagnostics, append `?kdcube_resize_debug=1` to the widget/static UI route
+or set `localStorage.setItem('kdcube.resize.debug', '1')` in the embedded page
+and reload. The reporter logs `[kdcube-resize]` entries for measurements it
+posts and for measurements it skips, including untrusted tiny viewport cases.
+
+If a widget or bundle UI contains another iframe, each frame layer must either
+host a KDCube-injected document or manually forward the same `kdcube-resize`
+message upward. Frame headers decide whether the browser may display the frame;
+they do not grant cross-origin DOM measurement.
+
+There is one valid exception: a same-origin reverse-proxy deployment may serve
+the host application and KDCube under one public origin:
+
+```text
+https://app.example.com/app/*       -> host application
+https://app.example.com/platform/*  -> KDCube frontend
+https://app.example.com/api/*       -> KDCube API
+```
+
+In that topology, `window.location.origin` is intentionally
+`https://app.example.com`, and the proxy must route all KDCube paths used by
+the frontend and widgets, including `/platform`, `/api`, streaming endpoints,
+and `/api/integrations/...`.
+
+## Frame View Contract (host-driven expand)
+
+A widget cannot present a fullscreen/overlay view itself — an iframe is clipped
+to its own rectangle, so an in-iframe modal cannot cover the host page. When a
+widget needs an "expand to full view" affordance, the host owns the overlay and
+the widget only signals intent over `postMessage`:
+
+```js
+// widget -> host: the widget wants to expand or collapse
+window.parent.postMessage({ type: 'kdcube-widget-view', widget: 'usage', view: 'dashboard' }, '*')
+
+// host -> widget: keep the widget in sync when the host closes its overlay
+window.addEventListener('message', (e) => {
+  if (e.data?.type === 'kdcube-set-view') applyView(e.data.view) // 'compact' = collapse
+})
+```
+
+- `widget` identifies the source so the host maps it to the right iframe.
+- `view` is `'compact'` (collapse) or a widget-specific expand token (e.g.
+  `'dashboard'`, `'expanded'`). Host rule: `'compact'` collapses, any other
+  value expands.
+- Recommended host implementation: **promote the same iframe** to a fixed
+  fullscreen overlay (CSS `position:fixed; inset:0`) and skip applying the
+  `kdcube-resize` height while expanded. Reusing the same element means **no
+  reload and no re-fetch** — the widget keeps its state. Do not spawn a second
+  iframe (re-fetch) or reparent the iframe in the DOM (browsers reload it).
+
+Widgets should keep an inline fallback (a self-contained bigger/expanded view)
+for when no host listens.
+
+## Required URL Shape
+
+Bundle operations must be called as:
+
+```text
+POST /api/integrations/bundles/{tenant}/{project}/{bundle_id}/operations/{alias}
+```
+
+For bundle widgets, `{bundle_id}` should come from `defaultAppBundleId`.
+
+Do not build operation URLs with:
+
+- empty `tenant` / `project` / `bundleId`
+- source-folder names
+- bundle-local constants that may drift from `bundles.yaml`
+
+## Fallback Operation Pattern
+
+For source-folder widgets, prefer a minimal decorated widget method plus
+separate structured APIs. If an existing client also calls the widget through
+the operations route, keep the widget method decorated with both:
+
+```python
+@ui_widget(alias="workflow-panel", user_types=("registered",))
+@api(alias="workflow-panel", route="operations", user_types=("registered",))
+async def workflow_panel(self, **kwargs):
+    ...
+```
+
+That means:
+
+- widget discovery/fetch is still driven by `@ui_widget(...)`
+- operation callers can still call the same method through `/operations/workflow-panel`
+
+For a source-folder widget, the method may return only a small compatibility
+fallback because the platform serves the built widget app from bundle storage
+when `ui.widgets.<alias>.src_folder/build_command` is configured.
+
+If the widget UI itself needs a structured backend API, expose a separate alias such as:
+
+```python
+@api(method="POST", alias="workflow-api", route="operations", user_types=("registered",))
+async def workflow_api(self, operation: str, payload: dict | None = None, **kwargs):
+    ...
+```
+
+Example operations for that API might be:
+
+- `list_items`
+- `create_item`
+- `update_item`
+- `run_action_now`
+
+Then the widget calls `/operations/workflow-api`, not `/operations/workflow-panel`.
+
+## Minimal Widget Handshake Example
+
+```ts
+const identity = 'MY_BUNDLE_WIDGET'
+
+const state = {
+  baseUrl: window.location.origin,
+  accessToken: '',
+  idToken: '',
+  idTokenHeader: 'X-ID-Token',
+  tenant: '',
+  project: '',
+  bundleId: '',
+}
+
+function hasConfig(): boolean {
+  return !!(state.baseUrl && state.tenant && state.project && state.bundleId)
+}
+
+function makeHeaders(): Headers {
+  const headers = new Headers({ 'Content-Type': 'application/json' })
+  if (state.accessToken) headers.set('Authorization', `Bearer ${state.accessToken}`)
+  if (state.idToken) headers.set(state.idTokenHeader || 'X-ID-Token', state.idToken)
+  return headers
+}
+
+function operationUrl(alias: string): string {
+  if (!hasConfig()) throw new Error('Widget configuration is incomplete.')
+  // baseUrl is the KDCube frame origin from runtime config, or this widget
+  // frame's own origin as a fallback. It must not come from window.top.
+  const baseUrl = state.baseUrl.replace(/\/+$/, '')
+  const tenant = encodeURIComponent(state.tenant)
+  const project = encodeURIComponent(state.project)
+  const bundleId = encodeURIComponent(state.bundleId)
+  return `${baseUrl}/api/integrations/bundles/${tenant}/${project}/${bundleId}/operations/${alias}`
+}
+
+async function postOperation<T>(alias: string, payload: Record<string, unknown>): Promise<T> {
+  const response = await fetch(operationUrl(alias), {
+    method: 'POST',
+    credentials: 'include',
+    headers: makeHeaders(),
+    body: JSON.stringify({ data: payload }),
+  })
+
+  const text = await response.text()
+  let parsed: unknown = {}
+  try {
+    parsed = text ? JSON.parse(text) : {}
+  } catch {
+    parsed = { raw: text }
+  }
+
+  if (!response.ok) {
+    const detail =
+      parsed && typeof parsed === 'object' && 'detail' in (parsed as Record<string, unknown>)
+        ? String((parsed as Record<string, unknown>).detail)
+        : text || response.statusText
+    throw new Error(detail)
+  }
+
+  if (parsed && typeof parsed === 'object' && alias in (parsed as Record<string, unknown>)) {
+    return (parsed as Record<string, unknown>)[alias] as T
+  }
+
+  return parsed as T
+}
+
+function applyConfig(config: Record<string, unknown>): void {
+  if (typeof config.baseUrl === 'string' && config.baseUrl) state.baseUrl = config.baseUrl
+  if (typeof config.accessToken === 'string' || config.accessToken === null) state.accessToken = config.accessToken || ''
+  if (typeof config.idToken === 'string' || config.idToken === null) state.idToken = config.idToken || ''
+  if (typeof config.idTokenHeader === 'string' && config.idTokenHeader) state.idTokenHeader = config.idTokenHeader
+  if (typeof config.defaultTenant === 'string' && config.defaultTenant) state.tenant = config.defaultTenant
+  if (typeof config.defaultProject === 'string' && config.defaultProject) state.project = config.defaultProject
+  if (typeof config.defaultAppBundleId === 'string' && config.defaultAppBundleId) state.bundleId = config.defaultAppBundleId
+}
+
+window.addEventListener('message', (event: MessageEvent) => {
+  if (event.data?.type !== 'CONN_RESPONSE' && event.data?.type !== 'CONFIG_RESPONSE') return
+  if (event.data.identity !== identity || !event.data.config) return
+  applyConfig(event.data.config)
+})
+
+async function loadFrontendConfig(): Promise<boolean> {
+  try {
+    const response = await fetch(`${state.baseUrl}/api/cp-frontend-config`, {
+      credentials: 'include',
+      cache: 'no-store',
+      headers: { Accept: 'application/json' },
+    })
+    if (!response.ok) return false
+    const config = await response.json()
+    applyConfig({
+      ...config,
+      defaultTenant: config.defaultTenant || config.tenant || config.tenant_id,
+      defaultProject: config.defaultProject || config.project || config.project_id,
+      idTokenHeader: config.idTokenHeader || config.idTokenHeaderName || config.auth?.idTokenHeaderName,
+    })
+    return hasConfig()
+  } catch {
+    // Route-derived tenant/project/bundle may still be enough for read-only
+    // static surfaces, but auth metadata only comes from runtime config.
+    return false
+  }
+}
+
+function requestParentConfig(): void {
+  window.parent.postMessage(
+    {
+      type: 'CONFIG_REQUEST',
+      data: {
+        identity,
+        requestedFields: [
+          'baseUrl',
+          'accessToken',
+          'idToken',
+          'idTokenHeader',
+          'defaultTenant',
+          'defaultProject',
+          'defaultAppBundleId',
+        ],
+      },
+    },
+    '*',
+  )
+}
+
+void loadFrontendConfig().then((loaded) => {
+  if (!loaded) requestParentConfig()
+})
+```
+
+## Operational Rules
+
+- Widget load should be read-only by default.
+- Use an explicit in-widget action such as `Refresh` if the widget needs to trigger a syncing bootstrap or other mutating backend operation.
+- If the widget can derive tenant/project/bundle defaults from its route, use those only as safe standalone fallbacks.
+- First fetch `/api/cp-frontend-config`; if it returns usable runtime config,
+  do not wait for parent messaging.
+- Keep parent `CONFIG_REQUEST` / `CONFIG_RESPONSE` as a fallback, because
+  older runtime display environments may be the only source of auth tokens and
+  final runtime scope.
+- For platform widgets and embedded browser clients, the preferred `POST /operations/{alias}` body shape is `{ "data": { ... } }`.
+- The integrations layer also accepts a raw JSON object body and treats it as `data`, so webhook-style service integrations do not need a platform-specific wrapper.
+- The integrations layer returns an envelope shaped like `{ status, tenant, project, bundle_id, [alias]: result }`; widgets should unwrap the `[alias]` field.
+- Widget operations that start long-running work should submit a background job
+  and return a durable job id/status immediately. The bundle's single `@on_job`
+  handler should call `await super().handle_job(**kwargs)` first so SDK mixins
+  can consume their own `work_kind` values, then the widget can refresh a status
+  operation until the shared job record reaches a terminal state.
+
+## Reference Examples
+
+Use these as reference implementations for the runtime config handshake and
+operation-call shape:
+
+- [Echo UI App.tsx](../../../src/kdcube-ai-app/kdcube_ai_app/apps/chat/sdk/examples/bundles/echo.ui@2026-03-30/ui/main/src/App.tsx)
+
+Those examples are useful for runtime config and API calls. For new widgets,
+prefer the source-folder layout described above instead of embedding TSX/HTML in
+Python-rendered widget responses.
+
+They show:
+
+- `/api/cp-frontend-config` first, then `CONFIG_REQUEST` as fallback to the
+  runtime display environment
+- accept both `CONN_RESPONSE` and `CONFIG_RESPONSE`
+- build operation URLs from runtime scope
+- use the host-provided auth tokens and token-header name

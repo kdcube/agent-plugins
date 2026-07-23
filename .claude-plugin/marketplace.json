@@ -1,22 +1,22 @@
 {
   "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
   "name": "kdcube",
-  "description": "Official KDCube Claude Code plugins — build KDCube bundles with live-docs-grounded assistance.",
+  "description": "Official KDCube plugins for coding agents — install and operate KDCube, and build apps (bundles) that run on it.",
   "owner": {
     "name": "KDCube",
     "url": "https://kdcube.tech"
   },
   "plugins": [
     {
-      "name": "kdcube-docs",
-      "description": "KDCube documentation MCP and workflow skill for Claude Code. Ships the kdcube-dev documentation MCP and a skill that guides Claude through bundle authoring, configuration, ReAct concepts, and the platform's surface taxonomy. Triggers on KDCube, bundles, entrypoint.py with platform decorators, kdcube.copilot, and platform/SDK questions.",
+      "name": "kdcube",
+      "description": "Claude Code app builder for backend-plus-frontend AI apps as KDCube bundles: CLI runtime init, bundle registration/configuration, widgets/main UI, APIs, tools, jobs, integrations, testing, release, and an offline Tier 1 docs pack. Reads KDCube knowledge from the local kdcube-ai-app checkout, with the hosted docs MCP at https://kdcube.tech/mcp/docs as a live fallback.",
       "author": {
         "name": "KDCube",
         "url": "https://kdcube.tech"
       },
       "category": "development",
-      "source": "./plugins/kdcube-docs",
-      "homepage": "https://github.com/kdcube/claude-plugins/blob/main/plugins/kdcube-docs/README.md"
+      "source": "./plugins/claude/kdcube",
+      "homepage": "https://github.com/kdcube/agent-plugins/blob/main/plugins/claude/kdcube/README.md"
     }
   ]
 }

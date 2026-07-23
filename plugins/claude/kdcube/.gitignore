@@ -1,0 +1,3 @@
+# Local dev config — copied from config/repos.yaml.template and filled with
+# absolute local checkout paths. Never committed.
+/config/repos.yaml

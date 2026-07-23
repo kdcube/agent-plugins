@@ -1,0 +1,9 @@
+{
+  "name": "kdcube",
+  "version": "0.4.0",
+  "description": "Claude Code app builder for backend-plus-frontend AI apps as KDCube bundles: CLI runtime init, bundle registration/configuration, widgets/main UI, APIs, tools, jobs, integrations, testing, release, and Tier 1 docs. Reads KDCube knowledge from the local kdcube-ai-app repo (docs + source).",
+  "author": {
+    "name": "KDCube"
+  },
+  "license": "MIT"
+}

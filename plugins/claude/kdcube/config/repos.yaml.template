@@ -1,0 +1,40 @@
+# Symbolic-ref → local-checkout registry for the kdcube plugin.
+#
+# You normally do NOT hand-write this file. `/kdcube:init` writes
+# config/repos.yaml, pinning kdcube-ai-app to the CLI-managed runtime repo at
+#   <workdir>/repo   (~/.kdcube/kdcube-runtime/<tenant>__<project>/repo)
+# resolved via `kdcube info` — that checkout matches the running platform. If no
+# runtime exists yet, init bootstraps one (pip install kdcube-cli; then
+# `kdcube init --upstream|--latest|--release`).
+#
+# A hand-set local_path below is the DEVELOPER OVERRIDE: you already have your own
+# platform checkout and want the plugin to read that instead of the runtime's.
+# (init will not silently pin a checkout it merely found on disk — the override is
+# something you set deliberately.)
+#
+# Refs look like:
+#   repo:kdcube-ai-app/app/ai-app/docs/sdk/bundle/build/how-to-write-bundle-README.md
+#   repo:my-bundles/src/my.bundle@1-0/entrypoint.py
+# The ref-resolver skill joins the matching entry's `local_path` with the rest of
+# the ref. Missing entries fail loudly so misconfig is visible.
+
+version: "1"
+
+repos:
+  # The KDCube platform repo: source code + canonical docs + tier-1 pack source.
+  kdcube-ai-app:
+    git: "https://github.com/kdcube/kdcube-ai-app.git"
+    local_path: "/absolute/path/to/kdcube-ai-app"
+    notes: |
+      Authoritative source for SDK building blocks, descriptor schemas,
+      release-pipeline references, and the Tier 1 build docs. The
+      plugin's tier1/ pack is copied from this repo; refresh with
+      bin/refresh-tier1.sh.
+
+  # Your own bundle/content repositories. Add one entry per repo that holds
+  # bundles you build or maintain, then refer to files in it as
+  # `repo:<name>/<path-within-repo>`. Uncomment and edit:
+  # my-bundles:
+  #   git: "git@github.com:your-org/your-bundles.git"
+  #   local_path: "/absolute/path/to/your-bundles"
+  #   notes: "Working repo for the bundles this operator builds."
