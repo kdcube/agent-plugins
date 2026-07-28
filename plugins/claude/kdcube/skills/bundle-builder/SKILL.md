@@ -226,7 +226,21 @@ KDCube runtime and the relevant route, widget, API, or chat probe actually ran.
   chat-processor base image — and do not decide base membership by importing in  
   your `.venv` (a test venv is not the proc container; a successful import there  
   can be a local or transitive install). Grep the declared proc requirements by  
-  name; see the base-deps note in `03-assemble.md` for the exact check;
+  name; see the base-deps note in `03-assemble.md` for the exact check. When an  
+  SDK feature the app uses needs a library that is NOT already in the base, the  
+  installation owner chooses ONE of two paths (by longevity and whether `@venv`  
+  limits are acceptable), and omitting both breaks the feature at runtime:  
+  **(1) base install** — the dep is needed long-term/broadly and you want it in  
+  the main runtimes with no venv isolation: add it to the platform service  
+  requirements, BOTH  
+  `repo:kdcube-ai-app/app/ai-app/src/kdcube-ai-app/requirements-chat.txt` and  
+  `repo:kdcube-ai-app/app/ai-app/src/kdcube-ai-app/requirements-chat-processor.txt`  
+  (chat + processor runtimes), so it lands in the base image;  
+  **(2) app `@venv`** — the dep is point-needed and running it in an isolated  
+  subprocess is fine: declare it in the app's `requirements.txt` and run that  
+  path under `@venv(...)`. `kdcube-services@1-0` illustrates path 2 — its Google  
+  Sheets tools (served on both the productivity MCP and the `sheets` named  
+  service) run in an app venv because `gspread` is in neither base requirements;
 - do not manually build `ui-src` into runtime bundle storage as the
   fix for stale bundle UI;
 - do not describe UI integration as a "bundle iframe" type. Bundles

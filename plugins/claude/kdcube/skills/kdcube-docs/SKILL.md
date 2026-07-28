@@ -1,6 +1,6 @@
 ---
 name: kdcube-docs
-description: "Read KDCube product, SDK, architecture, and operator knowledge from the LOCAL kdcube-ai-app repo (docs + source) — no hosted retrieval service. Activate whenever a task needs KDCube ground truth: building/serving/integrating an app (bundle), the CLI/operator level, descriptors, auth/sessions/dataflows, surfaces, runtimes, economics, or how a reference app is wired. This is the source of truth; prefer it over memory."
+description: "Read KDCube product, SDK, architecture, and operator knowledge from the LOCAL kdcube-ai-app repo (docs + source) — no hosted retrieval service. Activate whenever a task needs KDCube ground truth: building/serving/integrating an app (bundle), the CLI/operator level, descriptors, auth/sessions/dataflows, surfaces, runtimes, economics, connecting external accounts (Connection Hub / delegated credentials), named services and exposing them over MCP, external provider integrations and their error/observability contract, or how a reference app is wired. This is the source of truth; prefer it over memory."
 ---
 
 # kdcube-docs — read KDCube ground truth from the local repo
@@ -115,7 +115,40 @@ checkout > pack**: the pack never overrides the checkout or the running platform
 | workspace | `repo:kdcube-ai-app/app/ai-app/src/kdcube-ai-app/kdcube_ai_app/apps/chat/sdk/examples/bundles/workspace@2026-03-31-13-36/` | surface reference (React, economics, memory, canvas, Telegram, widgets, MCP) |
 | user-memories | `repo:kdcube-ai-app/app/ai-app/src/kdcube-ai-app/kdcube_ai_app/apps/chat/sdk/examples/bundles/user-memories@2026-06-26/` | minimal app deriving the memory+economics mixin (widget + `mem` named service) |
 | connection-hub | `repo:kdcube-ai-app/app/ai-app/src/kdcube-ai-app/kdcube_ai_app/apps/chat/sdk/examples/bundles/connection-hub@1-0/` | strong `AGENTS.md`, interface, and storage-ownership structure |
-| kdcube-services | `repo:kdcube-ai-app/app/ai-app/src/kdcube-ai-app/kdcube_ai_app/apps/chat/sdk/examples/bundles/kdcube-services@1-0/` | MCP/service facade, widgets, Data Bus, signed files, OpenAPI, and storage contract |
+| kdcube-services | `repo:kdcube-ai-app/app/ai-app/src/kdcube-ai-app/kdcube_ai_app/apps/chat/sdk/examples/bundles/kdcube-services@1-0/` | MCP/service facade, widgets, Data Bus, signed files, OpenAPI, storage contract, and the **app-owned `@venv` + `requirements.txt`** pattern — its Google Sheets tools (served on both the productivity MCP and the `sheets` named service) run in an app venv because `gspread` is in neither base requirement — the point-need path, vs. adding a long-term dep to `requirements-chat.txt` + `requirements-chat-processor.txt`; the `@venv` contract is `repo:kdcube-ai-app/app/ai-app/docs/sdk/bundle/bundle-venv-README.md` (also `tier1/04-write.md` §`@venv`) |
 
 Examples demonstrate surfaces; the canonical package in `tier1/04-write.md`
 wins when an older example has a different layout.
+
+### F. Connections, named services, and integrations
+
+**Connection Hub owns external connections and delegated credentials.** Its
+`bundles.yaml` config declares two things a bundle relies on but does not
+reimplement: the OAuth authorization surface for external clients
+(`connections.delegated_credentials.oauth`: `capabilities`, `resources`, and a
+door claim's backing `connected_accounts`) and the delegated-to-KDCube provider
+registry (`connections.delegated_to_kdcube.providers.<p>`: each claim's real
+OAuth `provider_scopes`, and the `connector_apps`). A bundle only **declares**
+the claims/tools it needs; Connection Hub resolves the user's token at runtime,
+and the agent never sees a provider token.
+
+Integration docs sit in three tiers: **bundle-local operator setup**
+(`connection-hub@1-0/docs/integrations/<provider>.md`) → **SDK mechanics**
+(`docs/sdk/integrations/<provider>/`) → **recipe** (`docs/recipes/connections/
+integrations/`).
+
+| Topic | repo: ref |
+|-------|-----------|
+| Connection Hub — what it owns; delegated-by vs delegated-to | `repo:kdcube-ai-app/app/ai-app/docs/sdk/solutions/connections/connection-hub-solution-README.md` |
+| Act on a signed-in user's own external account (delegated-to; no bundle OAuth) | `repo:kdcube-ai-app/app/ai-app/docs/recipes/connections/README.md` |
+| Authenticated MCP end-to-end: two gates, door claims, `connected_accounts` contract | `repo:kdcube-ai-app/app/ai-app/docs/sdk/solutions/connections/authenticated-mcp/authenticated-mcp-README.md` |
+| KDCube as OAuth authorization server for external clients (Claude Code) | `repo:kdcube-ai-app/app/ai-app/docs/sdk/solutions/connections/delegated-credentials/oauth-delegated-credential-protocol-adapter-README.md` |
+| Named services — expose owned objects/actions as a namespace (SDK) | `repo:kdcube-ai-app/app/ai-app/docs/sdk/namespace-services/README.md`, `.../providers-README.md` |
+| **Make a named service** (recipe) | `repo:kdcube-ai-app/app/ai-app/docs/recipes/components/named-service-README.md` |
+| **Expose a governed service over MCP** (recipe) | `repo:kdcube-ai-app/app/ai-app/docs/recipes/quickstart/expose-governed-service-mcp-README.md` |
+| Expose named services as one generic MCP surface to external agents | `repo:kdcube-ai-app/app/ai-app/docs/recipes/apps/named-services-mcp-README.md` |
+| Guard a bundle MCP/REST surface with managed credentials | `repo:kdcube-ai-app/app/ai-app/docs/recipes/connections/protect-bundle-mcp-with-managed-credentials-README.md` |
+| **Provider error & observability contract** — how a provider failure must present and propagate across a tool/named-service/REST/MCP boundary (managed envelope, auth vs service failures, retries, partial results) | `repo:kdcube-ai-app/app/ai-app/docs/sdk/integrations/provider-error-contract-README.md` |
+| SDK integrations index (per-provider mechanics) | `repo:kdcube-ai-app/app/ai-app/docs/sdk/integrations/README.md` |
+| Google services (Gmail, Sheets) — recipe + SDK mechanics/scopes | `repo:kdcube-ai-app/app/ai-app/docs/recipes/connections/integrations/google-service-README.md`, `repo:kdcube-ai-app/app/ai-app/docs/sdk/integrations/google/google-README.md` |
+| Generic OAuth/OIDC connect service (the framework Google/Slack instantiate) | `repo:kdcube-ai-app/app/ai-app/docs/sdk/integrations/custom-oauth-oidc-service-README.md` |
