@@ -120,35 +120,58 @@ checkout > pack**: the pack never overrides the checkout or the running platform
 Examples demonstrate surfaces; the canonical package in `tier1/04-write.md`
 wins when an older example has a different layout.
 
-### F. Connections, named services, and integrations
+### F. Connection Hub — capability map
 
-**Connection Hub owns external connections and delegated credentials.** Its
-`bundles.yaml` config declares two things a bundle relies on but does not
-reimplement: the OAuth authorization surface for external clients
-(`connections.delegated_credentials.oauth`: `capabilities`, `resources`, and a
-door claim's backing `connected_accounts`) and the delegated-to-KDCube provider
-registry (`connections.delegated_to_kdcube.providers.<p>`: each claim's real
-OAuth `provider_scopes`, and the `connector_apps`). A bundle only **declares**
-the claims/tools it needs; Connection Hub resolves the user's token at runtime,
-and the agent never sees a provider token.
+**Connection Hub is the center of KDCube's external-trust model.** It owns three
+directions of trust; a bundle only **declares** what it needs and Connection Hub
+resolves credentials at runtime (the agent never sees a provider token). This is
+a capability map — pick the use case, then read its doc; the docs carry the
+detail. Integration docs sit in three tiers: bundle-local operator setup
+(`connection-hub@1-0/docs/integrations/<p>.md`) → SDK mechanics
+(`docs/sdk/integrations/<p>/`) → recipe (`docs/recipes/connections/…`).
 
-Integration docs sit in three tiers: **bundle-local operator setup**
-(`connection-hub@1-0/docs/integrations/<provider>.md`) → **SDK mechanics**
-(`docs/sdk/integrations/<provider>/`) → **recipe** (`docs/recipes/connections/
-integrations/`).
+Concept + config first:
 
-| Topic | repo: ref |
-|-------|-----------|
-| Connection Hub — what it owns; delegated-by vs delegated-to | `repo:kdcube-ai-app/app/ai-app/docs/sdk/solutions/connections/connection-hub-solution-README.md` |
-| Act on a signed-in user's own external account (delegated-to; no bundle OAuth) | `repo:kdcube-ai-app/app/ai-app/docs/recipes/connections/README.md` |
-| Authenticated MCP end-to-end: two gates, door claims, `connected_accounts` contract | `repo:kdcube-ai-app/app/ai-app/docs/sdk/solutions/connections/authenticated-mcp/authenticated-mcp-README.md` |
-| KDCube as OAuth authorization server for external clients (Claude Code) | `repo:kdcube-ai-app/app/ai-app/docs/sdk/solutions/connections/delegated-credentials/oauth-delegated-credential-protocol-adapter-README.md` |
-| Named services — expose owned objects/actions as a namespace (SDK) | `repo:kdcube-ai-app/app/ai-app/docs/sdk/namespace-services/README.md`, `.../providers-README.md` |
-| **Make a named service** (recipe) | `repo:kdcube-ai-app/app/ai-app/docs/recipes/components/named-service-README.md` |
-| **Expose a governed service over MCP** (recipe) | `repo:kdcube-ai-app/app/ai-app/docs/recipes/quickstart/expose-governed-service-mcp-README.md` |
-| Expose named services as one generic MCP surface to external agents | `repo:kdcube-ai-app/app/ai-app/docs/recipes/apps/named-services-mcp-README.md` |
-| Guard a bundle MCP/REST surface with managed credentials | `repo:kdcube-ai-app/app/ai-app/docs/recipes/connections/protect-bundle-mcp-with-managed-credentials-README.md` |
-| **Provider error & observability contract** — how a provider failure must present and propagate across a tool/named-service/REST/MCP boundary (managed envelope, auth vs service failures, retries, partial results) | `repo:kdcube-ai-app/app/ai-app/docs/sdk/integrations/provider-error-contract-README.md` |
+| Capability | repo: ref |
+|---|---|
+| Connection Hub concept: what it owns; delegated-TO vs delegated-BY vs app-as-authority | `repo:kdcube-ai-app/app/ai-app/docs/sdk/solutions/connections/connection-hub-solution-README.md` |
+| Config it owns: `delegated_to_kdcube.providers.<p>` (claims→`provider_scopes`, `connector_apps`) and `delegated_credentials.oauth` (`capabilities`, `resources`, door-claim `connected_accounts`) | `repo:kdcube-ai-app/app/ai-app/src/kdcube-ai-app/kdcube_ai_app/apps/chat/sdk/examples/bundles/connection-hub@1-0/` |
+
+**Delegated TO KDCube** — the user connects an external account; the bundle acts on it:
+
+| Capability | repo: ref |
+|---|---|
+| Simply connect an account and use its token in tool code (no bundle OAuth) | `repo:kdcube-ai-app/app/ai-app/docs/recipes/connections/README.md`, `repo:kdcube-ai-app/app/ai-app/docs/recipes/connections/integrations/resolve-connected-credential-README.md` |
+| Use a connected identity in a product feature | `repo:kdcube-ai-app/app/ai-app/docs/recipes/connections/use-connected-identities-in-product-feature-README.md` |
+| OAuth provider (Google, Slack) vs no-OAuth (iCloud app-password) — operator setup | bundle-local `connection-hub@1-0/docs/integrations/{google,slack,icloud}.md` |
+| Connect your own / any custom OAuth-2.0 or OIDC service (framework Google/Slack instantiate) | `repo:kdcube-ai-app/app/ai-app/docs/sdk/integrations/custom-oauth-oidc-service-README.md`, recipe `repo:kdcube-ai-app/app/ai-app/docs/recipes/connections/integrations/custom-oauth-oidc-service-README.md` |
+| Google services (Gmail, Sheets) — recipe + SDK scope mechanics | `repo:kdcube-ai-app/app/ai-app/docs/recipes/connections/integrations/google-service-README.md`, `repo:kdcube-ai-app/app/ai-app/docs/sdk/integrations/google/google-README.md` |
+| Wrap a connected-account capability as a provider-neutral **named service** | `repo:kdcube-ai-app/app/ai-app/docs/recipes/components/named-service-README.md`, `repo:kdcube-ai-app/app/ai-app/docs/recipes/connections/integrations/mail-named-service-README.md` |
+| **More than one account connected**: `account_required` + labeled candidates, per-account binding, search fan-out | `repo:kdcube-ai-app/app/ai-app/docs/sdk/solutions/connections/authenticated-mcp/authenticated-mcp-README.md`, `repo:kdcube-ai-app/app/ai-app/docs/recipes/connections/integrations/mail-named-service-README.md` |
+
+**Delegated BY KDCube** — KDCube issues a bounded credential so an external client/agent enters the user's app:
+
+| Capability | repo: ref |
+|---|---|
+| Expose your app's MCP to an external agent / Claude Code (managed credentials) | `repo:kdcube-ai-app/app/ai-app/docs/recipes/connections/delegate-kdcube-service-to-external-client-README.md`, `repo:kdcube-ai-app/app/ai-app/docs/recipes/connections/protect-bundle-mcp-with-managed-credentials-README.md` |
+| Guard a bundle REST operation with managed credentials | `repo:kdcube-ai-app/app/ai-app/docs/recipes/connections/protect-bundle-rest-with-managed-credentials-README.md` |
+| Expose named services as ONE generic MCP surface to external agents | `repo:kdcube-ai-app/app/ai-app/docs/recipes/apps/named-services-mcp-README.md` |
+| The OAuth authorization-server protocol (PKCE, DCR, consent, token issue) | `repo:kdcube-ai-app/app/ai-app/docs/sdk/solutions/connections/delegated-credentials/oauth-delegated-credential-protocol-adapter-README.md` |
+| Two gates + demand-driven per-agent/per-account consent; `connected_accounts` contract | `repo:kdcube-ai-app/app/ai-app/docs/sdk/solutions/connections/authenticated-mcp/authenticated-mcp-README.md`, `repo:kdcube-ai-app/app/ai-app/docs/sdk/solutions/connections/claim-driven-consent/claim-driven-consent-README.md` |
+| Bounded automation access (script/CI token with a TTL) | `repo:kdcube-ai-app/app/ai-app/docs/recipes/connections/create-delegated-automation-access-README.md` |
+
+**App as platform authority** — the user's own app hosts login / is the auth provider:
+
+| Capability | repo: ref |
+|---|---|
+| Host login / make your app KDCube's platform authority | `repo:kdcube-ai-app/app/ai-app/docs/recipes/connections/platform-authority/host-platform-authority-in-bundle-README.md` |
+| Authority provider runtime + projection into KDCube sessions | `repo:kdcube-ai-app/app/ai-app/docs/sdk/solutions/connections/authority-providers/authority-provider-runtime-README.md`, `repo:kdcube-ai-app/app/ai-app/docs/sdk/solutions/connections/authority-projection/authority-projection-README.md` |
+
+**Cross-cutting**
+
+| Capability | repo: ref |
+|---|---|
+| Make a named service; expose a governed service over MCP (recipes) | `repo:kdcube-ai-app/app/ai-app/docs/recipes/components/named-service-README.md`, `repo:kdcube-ai-app/app/ai-app/docs/recipes/quickstart/expose-governed-service-mcp-README.md` |
+| Named services as a namespace (SDK) | `repo:kdcube-ai-app/app/ai-app/docs/sdk/namespace-services/README.md`, `repo:kdcube-ai-app/app/ai-app/docs/sdk/namespace-services/providers-README.md` |
+| How a provider failure presents/propagates across tool/named-service/REST/MCP | `repo:kdcube-ai-app/app/ai-app/docs/sdk/integrations/provider-error-contract-README.md` |
 | SDK integrations index (per-provider mechanics) | `repo:kdcube-ai-app/app/ai-app/docs/sdk/integrations/README.md` |
-| Google services (Gmail, Sheets) — recipe + SDK mechanics/scopes | `repo:kdcube-ai-app/app/ai-app/docs/recipes/connections/integrations/google-service-README.md`, `repo:kdcube-ai-app/app/ai-app/docs/sdk/integrations/google/google-README.md` |
-| Generic OAuth/OIDC connect service (the framework Google/Slack instantiate) | `repo:kdcube-ai-app/app/ai-app/docs/sdk/integrations/custom-oauth-oidc-service-README.md` |

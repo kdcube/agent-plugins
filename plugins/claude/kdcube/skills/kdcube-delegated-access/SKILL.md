@@ -16,7 +16,7 @@ Ground truth (read via **kdcube-docs** before acting):
 - recipe: `repo:kdcube-ai-app/app/ai-app/docs/recipes/connections/create-delegated-automation-access-README.md`
 - guarded REST: `…/docs/recipes/connections/protect-bundle-rest-with-managed-credentials-README.md`
 - guarded MCP: `…/docs/recipes/connections/protect-bundle-mcp-with-managed-credentials-README.md`
-- named services over MCP: `…/docs/recipes/kdcube_for_agents/named-services-mcp-README.md`
+- named services over MCP: `…/docs/recipes/apps/named-services-mcp-README.md`
 - model: `…/docs/sdk/solutions/connections/delegated-connections/delegated-connections-README.md`
 
 ## The flow (manual token — fastest start)
