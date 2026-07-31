@@ -4,7 +4,7 @@ title: "How To Assemble A Bundle With SDK Building Blocks"
 summary: "Tier 1 bundle-builder map for choosing reusable KDCube SDK and platform blocks before writing custom bundle services: tools, event sources, agents, storage, widgets, jobs, integrations, and solutions."
 tags: ["sdk", "bundle", "tier-1", "building-blocks", "integrations", "solutions", "tools"]
 keywords: ["bundle building blocks", "sdk integrations", "sdk solutions", "bundle assembly map", "reuse sdk components", "surface first app design", "as consumer", "as provider", "mcp consumer surface", "mcp provider surface", "per-agent mcp allow-list", "telegram integration", "email integration", "automations solution", "delivery integration", "shared sdk widget components", "built in tools", "react tools", "bundle events", "event sources", "artifact rehosters"]
-updated_at: 2026-07-16
+updated_at: 2026-07-30
 see_also:
   - repo:kdcube-ai-app/app/ai-app/docs/recipes/what-i-should-know-about-app-README.md
   - repo:kdcube-ai-app/app/ai-app/docs/how-to-integrate-with-kdcube-apps-README.md
@@ -27,8 +27,8 @@ see_also:
   - repo:kdcube-ai-app/app/ai-app/docs/sdk/tools/custom-tools-README.md
   - repo:kdcube-ai-app/app/ai-app/docs/sdk/tools/tool-subsystem-README.md
   - repo:kdcube-ai-app/app/ai-app/docs/sdk/tools/mcp-README.md
-  - repo:kdcube-ai-app/app/ai-app/docs/recipes/kdcube_for_agents/consume-mcp-service-README.md
-  - repo:kdcube-ai-app/app/ai-app/docs/recipes/kdcube_for_agents/expose-mcp-service-README.md
+  - repo:kdcube-ai-app/app/ai-app/docs/recipes/apps/consume-mcp-service-README.md
+  - repo:kdcube-ai-app/app/ai-app/docs/recipes/apps/expose-mcp-service-README.md
   - repo:kdcube-ai-app/app/ai-app/docs/sdk/bundle/bundle-agent-integration-README.md
   - repo:kdcube-ai-app/app/ai-app/docs/service/comm/client-transport-protocols-README.md
   - repo:kdcube-ai-app/app/ai-app/docs/sdk/bundle/bundle-events-README.md
@@ -66,7 +66,7 @@ The goal is to assemble product behavior from reusable KDCube blocks where the
 platform already owns the mechanics, and keep bundle code focused on product
 policy, route aliases, prompts, UI composition, and user-scope decisions.
 
-For the complete kdcube mind map before choosing a surface or subsystem,
+For the complete builder's mind map before choosing a surface or subsystem,
 read [What I Should Know Before Writing a KDCube App](../../../recipes/what-i-should-know-about-app-README.md).
 
 If you landed here directly, first read
@@ -111,7 +111,7 @@ and tests. An app may be MCP-only, API-only, widget-only, or backend-only.
   explicit `kind: mcp` entry and concrete `allowed` tool list under
   `surfaces.as_consumer.agents.<agent>.tools`.
 - **Provide MCP:** expose ordinary async domain operations through a stateless
-  FastMCP app and `@mcp(...)`; put the boundary policy under
+  `KDCubeMCPServer` and `@mcp(...)`; put the boundary policy under
   `surfaces.as_provider.mcp.<alias>.auth` and choose its real owner: public,
   app-owned (`mode: bundle`), or platform-managed (`mode: managed`).
 
@@ -119,8 +119,8 @@ The directions are independent. Connecting a server does not require `@mcp`;
 exposing an app MCP endpoint does not grant it to every agent. Named services
 are optional shared object semantics, not an MCP prerequisite.
 
-Use [Connect An MCP Service To A KDCube Agent](../../../recipes/kdcube_for_agents/consume-mcp-service-README.md)
-and [Expose An MCP Service From A KDCube App](../../../recipes/kdcube_for_agents/expose-mcp-service-README.md)
+Use [Connect An MCP Service To A KDCube Agent](../../../recipes/apps/consume-mcp-service-README.md)
+and [Expose An MCP Service From A KDCube App](../../../recipes/apps/expose-mcp-service-README.md)
 for the concrete descriptor, code, authorization, and verification paths.
 
 ## Assembly Rule
