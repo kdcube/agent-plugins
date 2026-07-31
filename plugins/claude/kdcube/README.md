@@ -14,10 +14,25 @@ Tier 1 handoff docs that a user's Claude Code session can actually load.
 
 ## Orientation Card
 
-KDCube is a backend-plus-frontend application framework for AI bundles:
-chat and agent runtimes, APIs, widgets/main UI, tools, scheduled and
-background jobs, storage, integrations, configuration descriptors, local CLI
-workflows, and content release.
+KDCube is a self-hosted runtime for AI agents and apps - one installation
+operates many Git-managed applications serving many users.
+
+What this plugin builds: **apps**. With agents or without, with a frontend or
+without, complex or simple - but always concurrent and async. An app declares
+the surfaces it owns: chat and agent runtimes, APIs, widgets/main UI, tools,
+scheduled and background jobs, storage, integrations, and configuration
+descriptors. Running at scale is these apps' nature, not a deployment option,
+and it shapes every authoring choice: hooks and I/O are async (the app lives
+inside concurrent processor event loops); serving is concurrent and
+multi-user; a turn can land on any worker, so no state rests in the process -
+durable state lives in the platform's stores under bundle/user/conversation
+scopes; the same application contract runs locally and scaled, unchanged.
+
+What this plugin operates: **KDCube itself** - the hub those apps run in. One
+installation, many apps, many users: runtime init and start, platform refresh,
+bundle registration, configuration, secrets, hot reload, testing, and release
+- the operator loop carried by `/kdcube:runtime-init`, `/kdcube:bundle-*`, and
+the `kdcube-operator` skill.
 
 When a task smells like "build an AI app", "serve a UI/API", "wire a tool",
 "run a job", "integrate a channel", "store per-user or per-bundle state", or
@@ -36,8 +51,9 @@ ground truth in the local `kdcube-ai-app` repo.
   KDCube bundle.
 - **Local KDCube docs + source** — the `kdcube-docs` skill reads KDCube
   ground truth straight from a local `kdcube-ai-app` checkout (docs +
-  source) through a topic→path index. There is no retrieval service;
-  onboarding clones the repo if it is missing.
+  source) through a topic→path index. The local repo is the primary source;
+  the hosted docs MCP at https://kdcube.tech/mcp/docs is the live fallback.
+  Onboarding clones the repo if it is missing.
 - **Symbolic-ref resolver** that turns `repo:kdcube-ai-app/...` refs into
   absolute local paths for `Read`/`grep`/edit work.
 - **Delegated-access skill** (`kdcube-delegated-access`) — how Claude (or any
