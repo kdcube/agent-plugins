@@ -5,17 +5,22 @@ description: "Onboard the kdcube plugin: pin the CLI-managed runtime repo (<work
 # /kdcube:init
 
 Deterministic preflight. The plugin reads KDCube ground truth from a **local
-checkout of `kdcube-ai-app`** (docs + source), so the one thing onboarding must
-guarantee is that the repo is present and resolvable. Report OK/FAIL per check;
-do not auto-fix beyond cloning the repo (with consent) — surface the diff and let
-the operator act.
+checkout of `kdcube`** (docs + source), so the one thing onboarding must
+guarantee is that the repo is present and resolvable. Report OK/FAIL per check.
+The declared onboarding actions are repository-key migration, a consented
+clone, and the guided runtime bootstrap below; surface any other correction
+instead of applying it silently.
 
 Steps:
 
 1. **Locate the KDCube repo.** In order of preference:
-   - Read `${CLAUDE_PLUGIN_ROOT}/config/repos.yaml`. If `local_path` is set and
-     valid (git repo containing `app/ai-app/docs/README.md`), use it — the
-     developer override. Done.
+   - Read `${CLAUDE_PLUGIN_ROOT}/config/repos.yaml`. If
+     `repos.kdcube.local_path` is set and valid (git repo containing
+     `app/ai-app/docs/README.md`), use it — the developer override. Done.
+   - Compatibility: if the file has only the former `repos.kdcube-ai-app`
+     entry, preserve its values under the canonical `repos.kdcube` key and
+     remove the former key. This is a registry-key migration, not another
+     checkout or a platform upgrade.
    - Otherwise the CLI-managed runtime repo: get the workdir from `kdcube info`
      and use `<workdir>/repo` (`~/.kdcube/kdcube-runtime/<tenant>__<project>/repo`)
      — a full checkout with docs that matches the running platform. Write it into
@@ -25,14 +30,14 @@ Steps:
      clones the chosen source into `<workdir>/repo`), then pin `config/repos.yaml`
      to `<workdir>/repo`.
 
-   Do not **silently** pin a `kdcube-ai-app` checkout you happened to find on disk
+   Do not **silently** pin a KDCube checkout you happened to find on disk
    — its version is unknown and may not match the runtime. If you do know of a
    local checkout (e.g. a developer's own), surface it and let the operator choose
    it as the override rather than writing it in unprompted. Do not answer KDCube
    questions from memory while the repo is unavailable — onboarding is the fix.
 
 2. **Bundle/content repo (optional).** If the operator has added their own
-   bundle repo to `config/repos.yaml` (any entry besides `kdcube-ai-app`),
+   bundle repo to `config/repos.yaml` (any entry besides `kdcube`),
    verify its `local_path` similarly — that's where the bundles they build live.
    Missing is fine for pure read tasks; needed when building/maintaining a local
    app.

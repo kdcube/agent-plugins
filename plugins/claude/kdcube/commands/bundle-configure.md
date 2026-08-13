@@ -28,6 +28,10 @@ Steps:
    Telegram webhook URLs, OAuth/Cognito callback behavior, or remote
    callback/control integrations for a local runtime, also read
    `tier1/09-local-public-ngrok.md`.
+   If `ui.main_view.site` is present or the operator asks to publish the main
+   view as a website, also read
+   `repo:kdcube/app/ai-app/docs/sdk/bundle/bundle-website-integration-README.md`
+   and `repo:kdcube/app/ai-app/docs/recipes/components/website-README.md`.
 
 2. Inspect the bundle's own config contract:
    - `config/bundles.template.yaml`;
@@ -89,6 +93,19 @@ the built-in bundle, based on Tier 1 docs.
    descriptor-backed bundle config; do not hardcode localhost into
    bundle code.
 
+   For an app website, confirm these values explicitly:
+   - `ui.main_view.site.enabled` — registers the built main view as a site;
+   - `ui.main_view.site.alias` — unique installation-wide route name used at
+     `/sites/{alias}/`;
+   - `ui.main_view.site.default` — whether this site owns clean paths when no
+     host selector matches; at most one enabled site is default;
+   - `ui.main_view.site.hosts` — YAML list of exact or wildcard host selectors.
+
+   The current CLI setter can write one host as a scalar. For several hosts,
+   edit the staged descriptor to a real YAML list, then reload the app. Host
+   declarations select traffic already routed to this KDCube installation;
+   they do not create DNS, tunnels, or public ingress.
+
 ```bash
 kdcube bundle my.bundle@1-0 \
   --set-config config.react.max_iterations 15 \
@@ -127,6 +144,17 @@ docker logs -f <kdcube proc container>   # app load/exec errors surface here
 docker logs -f <ingress container>       # request/auth/event-entry errors
 # or read the runtime logs dir: ~/.kdcube/kdcube-runtime/<tenant>__<project>/logs/
 ```
+
+When the app registers a site, verify the real proxy origin as well:
+
+```bash
+curl -i "http://127.0.0.1:<proxy-port>/sites/<alias>/"
+curl -i -H 'Host: <configured-host>' "http://127.0.0.1:<proxy-port>/"
+```
+
+The alias request must resolve the app artifact. The host request must select
+the same site only when that host is declared. Also confirm that the control
+plane remains available under the configured `proxy.route_prefix`.
 
 Re-apply (`kdcube bundle reload` / `kdcube refresh`) after a fix.
 

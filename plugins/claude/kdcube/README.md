@@ -4,7 +4,7 @@ A Claude Code plugin that turns Claude into an actionable KDCube app
 builder: initialize a local runtime, register and configure bundles,
 maintain bundle repos, test them, and release them only after explicit
 operator approval. It is informed by the canonical Tier 1 build pack
-and reads KDCube ground truth straight from a local `kdcube-ai-app`
+and reads KDCube ground truth straight from a local `kdcube`
 checkout (docs + source) via the `kdcube-docs` skill and its index,
 cloning the repo on onboarding when it is missing.
 
@@ -39,7 +39,7 @@ When a task smells like "build an AI app", "serve a UI/API", "wire a tool",
 "ship the bundle to a runtime", the agent should check KDCube first instead of
 inventing its own backend/frontend serving, queue, configuration, storage, or
 release mechanics. The `kdcube-docs` skill points the agent at the matching
-ground truth in the local `kdcube-ai-app` repo.
+ground truth in the local KDCube repo.
 
 ## What it gives you
 
@@ -50,11 +50,11 @@ ground truth in the local `kdcube-ai-app` repo.
   as its baseline knowledge of how to build/configure/test/release a
   KDCube bundle.
 - **Local KDCube docs + source** — the `kdcube-docs` skill reads KDCube
-  ground truth straight from a local `kdcube-ai-app` checkout (docs +
+  ground truth straight from a local `kdcube` checkout (docs +
   source) through a topic→path index. The local repo is the primary source;
   the hosted docs MCP at https://kdcube.tech/mcp/docs is the live fallback.
   Onboarding clones the repo if it is missing.
-- **Symbolic-ref resolver** that turns `repo:kdcube-ai-app/...` refs into
+- **Symbolic-ref resolver** that turns `repo:kdcube/...` refs into
   absolute local paths for `Read`/`grep`/edit work.
 - **Delegated-access skill** (`kdcube-delegated-access`) — how Claude (or any
   automation) acts on behalf of the user inside KDCube: bounded automation
@@ -72,27 +72,32 @@ ground truth in the local `kdcube-ai-app` repo.
 
 ## Knowledge Access
 
-KDCube knowledge is the local `kdcube-ai-app` repo — its docs and its source.
+KDCube knowledge is the local `kdcube` repo — its docs and its source.
 There is no retrieval service. The `kdcube-docs` skill carries a topic→path
-index into the repo: the agent resolves each `repo:kdcube-ai-app/<path>` ref
+index into the repo: the agent resolves each `repo:kdcube/<path>` ref
 through the ref-resolver (`config/repos.yaml`) and `Read`s it, or `rg`/`find`s
 the repo for anything not indexed. The `tier1/` pack is a local snapshot of the
 build docs; when it and the repo disagree, the repo wins.
 
 If the repo is not resolvable, `/kdcube:init` locates a
-CLI-installed checkout or clones `https://github.com/kdcube/kdcube-ai-app.git`
+CLI-installed checkout or clones `https://github.com/kdcube/kdcube.git`
 and records the path in `config/repos.yaml`.
 
 ## One-time setup (operator)
 
 The minimum setup is:
 
-1. Install or locate `kdcube-cli`.
-2. Run `/kdcube:init` to resolve (or clone) the local
-   `kdcube-ai-app` checkout and record it in `config/repos.yaml`. Copy
+1. Run `/kdcube:init` to resolve the KDCube checkout and record it in
+   `config/repos.yaml`. When no runtime or checkout exists yet, it hands the
+   work to `/kdcube:runtime-init`, which installs `kdcube-cli` and KDCube,
+   instead of requiring either to be installed first. Copy
    `config/repos.yaml.template` to `config/repos.yaml` first if you want to set
    the checkout path by hand.
-3. Run `/kdcube:runtime-init` when a live runtime is needed.
+2. Run `/kdcube:runtime-init` directly when you later need another runtime or
+   want to revisit setup. It asks for sign-in and platform source, and can
+   configure one stable public HTTPS origin for app websites, webhooks,
+   callbacks, or the Telegram companion.
+3. Continue with `/kdcube:bundle-new` or `/kdcube:bundle-configure` for the app.
    For a fast new environment, that command can export an existing runtime's
    complete descriptor set, rewrite the target tenant/project/public URLs, and
    initialize the new runtime from the edited export.
@@ -129,7 +134,7 @@ tier1/                         canonical Tier 1 build pack
   06-configure-and-run.md      descriptor staging, kdcube CLI
   07-release-content.md        optional, only after user-approved release
   08-agent-integration.md      conditional, when bundle ships React/MCP/Claude Code
-  09-local-public-ngrok.md     conditional, local public HTTPS for webhooks/callbacks
+  09-local-public-ngrok.md     conditional, local public HTTPS for sites/callbacks
   10-widget-integration.md     conditional, widget/generated HTML API origin contract
 skills/
   bundle-builder/SKILL.md      the unified planning skill (always-loaded)
@@ -145,7 +150,7 @@ commands/
   bundle-new.md                new modular async app from the canonical package contract
   bundle-test.md               run the test contract with venv preflight
   bundle-release.md            content-release procedure (user-approved only)
-  knowledge-refresh.md         re-pull tier-1 from upstream kdcube-ai-app
+  knowledge-refresh.md         re-pull tier-1 from the local KDCube checkout
 config/
   repos.yaml.template          symbolic ref → local checkout
   audiences.yaml.template      mirror of the kdcube audience registry
@@ -154,7 +159,7 @@ templates/
 hooks/
   hooks.json                   SessionStart: surface tier-1 entry point + repos.yaml status
 bin/
-  refresh-tier1.sh             re-copy the tier-1 docs from kdcube-ai-app
+  refresh-tier1.sh             re-copy tier-1 docs from the KDCube checkout
 ```
 
 ## Scope boundary
@@ -162,5 +167,5 @@ bin/
 The plugin is for **building and operating bundles**. It is not for
 maintaining the KDCube platform itself.
 
-The plugin reads the local `kdcube-ai-app` repo as ground truth; it does
+The plugin reads the local `kdcube` repo as ground truth; it does
 not edit that repo as part of bundle work.

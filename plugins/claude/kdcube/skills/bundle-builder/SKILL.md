@@ -30,15 +30,15 @@ These are routing hints inside *this* skill, not separate sub-agents.
   and the preferred reading order. Then `01-navigate.md` is the
   router into deeper kdcube docs.
 - **Canonical kdcube mind map** at
-  `repo:kdcube-ai-app/app/ai-app/docs/recipes/what-i-should-know-about-app-README.md`
+  `repo:kdcube/app/ai-app/docs/recipes/what-i-should-know-about-app-README.md`
   — use it before designing an unfamiliar app boundary; Tier 1 owns the
   detailed implementation and verification contracts.
-- **kdcube-docs skill** — read the local `kdcube-ai-app` repo (docs +
+- **kdcube-docs skill** — read the local KDCube repo (docs +
   source) for any KDCube ground truth. It carries a topic→path index
-  into the repo: resolve each `repo:kdcube-ai-app/<path>` ref, Read it,
+  into the repo: resolve each `repo:kdcube/<path>` ref, Read it,
   and `rg`/`find` the repo for anything not indexed. There is no
   knowledge service. See `kdcube-docs/SKILL.md`.
-- **Symbolic-ref resolver** — turn `repo:kdcube-ai-app/path/...` into
+- **Symbolic-ref resolver** — turn `repo:kdcube/path/...` into
   an absolute local path so you can Read/grep/edit the local checkout.
   See `ref-resolver/SKILL.md`.
 - **kdcube-operator skill** — for runtime ops: descriptors and props/secrets
@@ -85,8 +85,8 @@ Optional, only when relevant:
 - `tier1/08-agent-integration.md` — when the bundle uses React tools/
   skills, file-producing tools, MCP, or Claude Code subprocesses.
 - `tier1/09-local-public-ngrok.md` — when local KDCube must be reachable
-  from external providers through public HTTPS, such as Telegram webhooks,
-  OAuth/Cognito callbacks, or remote callback/control flows.
+  through public HTTPS for an app-hosted website, another device, Telegram
+  webhooks, OAuth/Cognito callbacks, or remote callback/control flows.
 - `tier1/10-widget-integration.md` — when writing or reviewing widgets,
   generated-static HTML apps, Mini Apps, or any browser-facing bundle API
   client.
@@ -162,7 +162,7 @@ For any non-trivial bundle task:
    deployer / local QA / integration QA / doc reader).
 3. Pick the minimum tier-1 doc set required (see the routing in
    `01-navigate.md`).
-4. Use the **kdcube-docs** skill to read the local `kdcube-ai-app` repo
+4. Use the **kdcube-docs** skill to read the local KDCube repo
    for product context (entities, flows, scenarios): follow its index →
    `repo:` refs → ref-resolver → Read, and `rg`/`find` the repo for the
    rest.
@@ -233,8 +233,8 @@ KDCube runtime and the relevant route, widget, API, or chat probe actually ran.
   **(1) base install** — the dep is needed long-term/broadly and you want it in  
   the main runtimes with no venv isolation: add it to the platform service  
   requirements, BOTH  
-  `repo:kdcube-ai-app/app/ai-app/src/kdcube-ai-app/requirements-chat.txt` and  
-  `repo:kdcube-ai-app/app/ai-app/src/kdcube-ai-app/requirements-chat-processor.txt`  
+  `repo:kdcube/app/ai-app/src/kdcube-ai-app/requirements-chat.txt` and
+  `repo:kdcube/app/ai-app/src/kdcube-ai-app/requirements-chat-processor.txt`
   (chat + processor runtimes), so it lands in the base image;  
   **(2) app `@venv`** — the dep is point-needed and running it in an isolated  
   subprocess is fine: declare it in the app's `requirements.txt` and run that  
@@ -266,7 +266,8 @@ KDCube runtime and the relevant route, widget, API, or chat probe actually ran.
   **delegated-to-KDCube** brokers consent/token/refresh — check the connected-accounts row in `03-assemble.md`;
 - do not expose proc as a separate public URL for local webhook/callback
   testing; use the one-origin ngrok reverse-proxy flow in
-  `tier1/09-local-public-ngrok.md` when localhost needs public HTTPS;
+  `tier1/09-local-public-ngrok.md` when localhost needs public HTTPS, including
+  app-hosted website routes;
 - do not hand-roll Telegram user registry, webhook duplicate handling, Mini
   App `initData` verification, or Telegram delivery when the SDK Telegram
   subsystem fits the bundle;
@@ -303,7 +304,7 @@ KDCube runtime and the relevant route, widget, API, or chat probe actually ran.
 
 - If a `repo:` ref does not resolve, stop and ask the operator to
   populate `config/repos.yaml`. Don't guess paths.
-- If the local `kdcube-ai-app` repo is not resolvable, run
+- If the local KDCube repo is not resolvable, run
   `/kdcube:init` to locate or clone it rather than
   fabricating coverage from memory.
 - If the bundle has no AGENTS.md, suggest dropping in the template

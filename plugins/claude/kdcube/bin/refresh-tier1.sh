@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# Re-copy the canonical Tier 1 doc pack from upstream kdcube-ai-app
+# Re-copy the canonical Tier 1 doc pack from the local KDCube checkout
 # into the plugin's tier1/ folder.
 #
-# Resolves repos.kdcube-ai-app.local_path from <plugin>/config/repos.yaml
-# (or repos.yaml.template if repos.yaml is absent — refusing to refresh
-# from a stale template path).
+# Resolves repos.kdcube.local_path from <plugin>/config/repos.yaml. Existing
+# installs that still use the retired repos.kdcube-ai-app key remain readable;
+# /kdcube:init migrates that key to repos.kdcube.
 #
 # Usage: bin/refresh-tier1.sh [--dry-run]
 
@@ -20,25 +20,33 @@ if [[ ! -f "$REPOS_YAML" ]]; then
   exit 2
 fi
 
-# Tiny YAML extractor for repos.kdcube-ai-app.local_path (works for the
-# template's flat shape; replace with `yq` if you want strict parsing).
-KDCUBE_LOCAL=$(awk '
-  /^[[:space:]]*kdcube-ai-app:[[:space:]]*$/ { in_kd=1; next }
-  in_kd && /^[[:space:]]+local_path:[[:space:]]/ {
-    sub(/^[[:space:]]+local_path:[[:space:]]*/, "")
-    gsub(/^["'"'"']|["'"'"']$/, "")
-    print; exit
-  }
-  /^[a-zA-Z_-]+:[[:space:]]*$/ && in_kd { in_kd=0 }
-' "$REPOS_YAML")
+# Tiny YAML extractor for this registry's flat shape. Use the canonical key
+# first and fall back to the former key for already-installed plugin configs.
+repo_local_path() {
+  local repo_key="$1"
+  awk -v repo_key="$repo_key" '
+    $0 ~ "^[[:space:]]*" repo_key ":[[:space:]]*$" { in_repo=1; next }
+    in_repo && /^[[:space:]]+local_path:[[:space:]]/ {
+      sub(/^[[:space:]]+local_path:[[:space:]]*/, "")
+      gsub(/^["'"'"']|["'"'"']$/, "")
+      print; exit
+    }
+    /^[a-zA-Z0-9_-]+:[[:space:]]*$/ && in_repo { in_repo=0 }
+  ' "$REPOS_YAML"
+}
+
+KDCUBE_LOCAL="$(repo_local_path kdcube)"
+if [[ -z "$KDCUBE_LOCAL" ]]; then
+  KDCUBE_LOCAL="$(repo_local_path kdcube-ai-app)"
+fi
 
 if [[ -z "${KDCUBE_LOCAL}" ]]; then
-  echo "error: could not extract repos.kdcube-ai-app.local_path from ${REPOS_YAML}" >&2
+  echo "error: could not extract repos.kdcube.local_path from ${REPOS_YAML}" >&2
   exit 3
 fi
 
 if [[ ! -d "$KDCUBE_LOCAL" ]]; then
-  echo "error: kdcube-ai-app local_path does not exist: ${KDCUBE_LOCAL}" >&2
+  echo "error: KDCube local_path does not exist: ${KDCUBE_LOCAL}" >&2
   exit 4
 fi
 

@@ -1,15 +1,15 @@
 ---
-description: "Refresh the bundled Tier 1 doc pack from upstream kdcube-ai-app. Re-runs bin/refresh-tier1.sh and reports any drift the agent should be aware of."
+description: "Refresh the bundled Tier 1 doc pack from the local KDCube checkout. Re-runs bin/refresh-tier1.sh and reports any drift the agent should be aware of."
 ---
 
 # /kdcube:knowledge-refresh
 
 Re-pull the canonical Tier 1 pack from upstream so the bundled copies
-under `tier1/` track the source-of-truth in `kdcube-ai-app`.
+under `tier1/` track the source of truth in the local KDCube checkout.
 
 Steps:
 
-1. Resolve `repo:kdcube-ai-app` via the ref-resolver. If the entry is
+1. Resolve `repo:kdcube` via the ref-resolver. If the entry is
    missing, stop and tell the operator to populate
    `config/repos.yaml`.
 
@@ -32,4 +32,4 @@ Steps:
    decide whether the plugin's own conventions need to follow.
 
 This command refreshes the plugin's own Tier 1 pack only; the upstream
-documentation it copies from is maintained in the `kdcube-ai-app` repo.
+documentation it copies from is maintained in the `kdcube` repo.

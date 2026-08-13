@@ -8,7 +8,7 @@ description: "Operate a local KDCube runtime: configure apps via descriptors (CL
 You are the operator. The job is the loop: **configure → apply (reload/refresh)
 → verify → read logs**. Source of truth lives in the repo — read it via the
 **kdcube-docs** skill before running anything:
-- run-sheet recipes: `repo:kdcube-ai-app/app/ai-app/docs/recipes/operations/operate-runtime-README.md`
+- run-sheet recipes: `repo:kdcube/app/ai-app/docs/recipes/operations/operate-runtime-README.md`
   (+ `install-clean-README.md`, `install-from-descriptors-README.md` beside it)
 - CLI design: `…/docs/service/cicd/cli-README.md`; CLI source: `…/kdcube_cli/src/kdcube_cli/cli.py`
 - descriptors: `…/docs/configuration/{assembly,bundles,secrets}-descriptor-README.md`

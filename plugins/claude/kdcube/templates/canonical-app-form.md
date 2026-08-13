@@ -6,7 +6,7 @@ the authority; examples demonstrate individual surfaces but never override the
 package contract. Use **connection-hub** for strong `AGENTS.md`/storage shape,
 **kdcube-services** for interface and service-facade shape, and **workspace**
 for full chat/scene/agent wiring. Authoring rules live in
-`repo:kdcube-ai-app/app/ai-app/docs/sdk/bundle/build/how-to-write-bundle-README.md`
+`repo:kdcube/app/ai-app/docs/sdk/bundle/build/how-to-write-bundle-README.md`
 (also in `tier1/04-write.md`).
 
 > Terminology: "app" == "bundle" during the rebrand. Identifiers stay verbatim

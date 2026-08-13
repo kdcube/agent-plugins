@@ -13,7 +13,7 @@ password, never embed platform admin tokens in scripts.
 
 Ground truth (read via **kdcube-docs** before acting):
 
-- recipe: `repo:kdcube-ai-app/app/ai-app/docs/recipes/connections/create-delegated-automation-access-README.md`
+- recipe: `repo:kdcube/app/ai-app/docs/recipes/connections/create-delegated-automation-access-README.md`
 - guarded REST: `…/docs/recipes/connections/protect-bundle-rest-with-managed-credentials-README.md`
 - guarded MCP: `…/docs/recipes/connections/protect-bundle-mcp-with-managed-credentials-README.md`
 - named services over MCP: `…/docs/recipes/apps/named-services-mcp-README.md`

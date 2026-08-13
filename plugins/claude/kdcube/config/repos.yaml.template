@@ -1,7 +1,7 @@
 # Symbolic-ref → local-checkout registry for the kdcube plugin.
 #
 # You normally do NOT hand-write this file. `/kdcube:init` writes
-# config/repos.yaml, pinning kdcube-ai-app to the CLI-managed runtime repo at
+# config/repos.yaml, pinning kdcube to the CLI-managed runtime repo at
 #   <workdir>/repo   (~/.kdcube/kdcube-runtime/<tenant>__<project>/repo)
 # resolved via `kdcube info` — that checkout matches the running platform. If no
 # runtime exists yet, init bootstraps one (pip install kdcube-cli; then
@@ -13,7 +13,7 @@
 # something you set deliberately.)
 #
 # Refs look like:
-#   repo:kdcube-ai-app/app/ai-app/docs/sdk/bundle/build/how-to-write-bundle-README.md
+#   repo:kdcube/app/ai-app/docs/sdk/bundle/build/how-to-write-bundle-README.md
 #   repo:my-bundles/src/my.bundle@1-0/entrypoint.py
 # The ref-resolver skill joins the matching entry's `local_path` with the rest of
 # the ref. Missing entries fail loudly so misconfig is visible.
@@ -22,9 +22,9 @@ version: "1"
 
 repos:
   # The KDCube platform repo: source code + canonical docs + tier-1 pack source.
-  kdcube-ai-app:
-    git: "https://github.com/kdcube/kdcube-ai-app.git"
-    local_path: "/absolute/path/to/kdcube-ai-app"
+  kdcube:
+    git: "https://github.com/kdcube/kdcube.git"
+    local_path: "/absolute/path/to/kdcube"
     notes: |
       Authoritative source for SDK building blocks, descriptor schemas,
       release-pipeline references, and the Tier 1 build docs. The

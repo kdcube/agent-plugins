@@ -21,6 +21,11 @@ particular operator's checkout layout. The plugin resolves them via
 1. Read `${CLAUDE_PLUGIN_ROOT}/config/repos.yaml` once per session
    and cache the result in working memory.
 2. Given `repo:<name>/<path>`:
+   - Treat `repo:kdcube-ai-app/...` as the compatibility spelling of
+     `repo:kdcube/...`. Both resolve through the single canonical
+     `repos.kdcube.local_path` entry. If an existing config has only
+     `repos.kdcube-ai-app`, use it for this session and let `/kdcube:init`
+     migrate it; never require a second checkout entry.
    - Look up `<name>` in `repos:`. If missing, **stop**: this is a
      misconfig, not an opportunity to guess. Tell the operator to add
      `<name>` to `config/repos.yaml`.
@@ -34,8 +39,8 @@ particular operator's checkout layout. The plugin resolves them via
 ## Examples
 
 ```
-repo:kdcube-ai-app/app/ai-app/docs/sdk/bundle/build/how-to-write-bundle-README.md
-  → /Users/<op>/src/kdcube/kdcube-ai-app/app/ai-app/docs/sdk/bundle/build/how-to-write-bundle-README.md
+repo:kdcube/app/ai-app/docs/sdk/bundle/build/how-to-write-bundle-README.md
+  → /Users/<op>/src/kdcube/app/ai-app/docs/sdk/bundle/build/how-to-write-bundle-README.md
 
 repo:my-bundles/src/my.bundle@1-0/entrypoint.py
   → /Users/<op>/src/your-org/your-bundles/src/my.bundle@1-0/entrypoint.py
@@ -47,7 +52,7 @@ Resolve eagerly (without asking) whenever:
 
 - the kdcube-docs index or a doc surfaces a `repo:` ref;
 - a tier-1 doc links sibling docs by relative path — convert those
-  to absolute paths via `repo:kdcube-ai-app/...`;
+  to absolute paths via `repo:kdcube/...`;
 - the user pastes a `repo:` ref.
 
 ## When the resolver is the wrong move

@@ -1,14 +1,14 @@
 ---
-id: repo:kdcube-ai-app/app/ai-app/docs/service/cicd/ngrok-README.md
+id: repo:kdcube/app/ai-app/docs/service/cicd/ngrok-README.md
 title: "Serving Local KDCube With Ngrok"
-summary: "Short operational recipe for exposing a local KDCube development stack through one ngrok HTTPS origin for Cognito, Telegram, and WebSocket/Data Bus testing."
-tags: ["service", "cicd", "local", "ngrok", "cognito", "telegram"]
-keywords: ["ngrok local kdcube", "kdcube web proxy", "caddy reverse proxy", "cognito callback ngrok", "telegram webhook ngrok", "socket.io websocket ngrok"]
-updated_at: 2026-06-24
+summary: "Operational recipe for exposing local KDCube through one ngrok HTTPS origin while preserving host, request-scheme, authentication, and streaming contracts."
+tags: ["service", "cicd", "local", "ngrok", "caddy", "proxy", "cognito", "telegram"]
+keywords: ["ngrok local kdcube", "kdcube web proxy", "caddy reverse proxy", "trusted forwarded proto", "signed upload URL scheme", "cognito callback ngrok", "telegram webhook ngrok", "socket.io websocket ngrok"]
+updated_at: 2026-08-13
 see_also:
-  - repo:kdcube-ai-app/app/ai-app/docs/service/cicd/cli-README.md
-  - repo:kdcube-ai-app/app/ai-app/docs/configuration/assembly-descriptor-README.md
-  - repo:kdcube-ai-app/app/ai-app/docs/configuration/bundles-descriptor-README.md
+  - repo:kdcube/app/ai-app/docs/service/cicd/cli-README.md
+  - repo:kdcube/app/ai-app/docs/configuration/assembly-descriptor-README.md
+  - repo:kdcube/app/ai-app/docs/configuration/bundles-descriptor-README.md
 ---
 # Serving Local KDCube With Ngrok
 
@@ -16,13 +16,18 @@ Use this when a local KDCube runtime must be reachable through a public HTTPS
 origin, for example for Telegram webhooks, Telegram Mini Apps, or Cognito
 callback testing.
 
-There are three local shapes:
+There are four local shapes:
 
 - **CLI-started runtime**: `kdcube start` runs Docker Compose and already puts
   the KDCube web proxy in front of frontend, ingress, and proc. This is the
   normal user path. Point ngrok directly at the web proxy port. Enabled app
   sites are available at `/sites/{alias}`; `/` resolves by host and then by one
   default site. No Caddy layer is needed.
+- **CLI-started runtime through Caddy**: Caddy forwards the complete public
+  origin to the KDCube web proxy. Use this optional shape for several local
+  hostnames, local TLS, or a separately served root website. Caddy preserves
+  host and scheme through an explicit trusted-proxy boundary; it does not
+  select an app or reproduce KDCube routes.
 - **Website root through Caddy**: a local website is served at `/`, while
   KDCube runtime paths are routed to the CLI-started KDCube web proxy. This is
   for a separately hosted website outside the KDCube app runtime. Point ngrok
@@ -58,6 +63,39 @@ For a website root served through Caddy, use the same ngrok target:
 ngrok http 18080 --url https://<stable-ngrok-domain>
 ```
 
+The same target applies when Caddy forwards the complete KDCube origin.
+
+### Trust the local ngrok hop in Caddy
+
+When ngrok points at Caddy, ngrok terminates public TLS and connects to Caddy
+over local HTTP:
+
+```text
+browser --https--> ngrok --http--> Caddy --http--> KDCube web proxy
+```
+
+ngrok supplies `X-Forwarded-Proto: https`. Caddy intentionally ignores
+incoming `X-Forwarded-*` values from an undeclared peer and otherwise replaces
+that value with the scheme it received itself, which is `http` in this shape.
+Declare only the local ngrok process as trusted at the start of the Caddyfile:
+
+```caddyfile
+{
+  servers {
+    trusted_proxies static 127.0.0.1/32 ::1/128
+    trusted_proxies_strict
+  }
+}
+```
+
+Caddy then carries ngrok's trusted public scheme to OpenResty. Direct requests
+without that header still use the scheme Caddy received. Keep
+`proxy.forwarded_proto.source: trusted_x_forwarded_proto` in the KDCube
+assembly so OpenResty validates the rightmost value as `http` or `https` and
+falls back to its own request scheme for any other value. These are two
+separate boundaries: Caddy decides which upstream peer may provide provenance;
+the KDCube descriptor decides whether OpenResty consumes it.
+
 Do not use `--host-header=rewrite` for KDCube browser flows. The browser
 configuration, static links, Socket.IO/Data Bus origin, and callback URLs must
 see the public Host that the browser is using.
@@ -78,7 +116,17 @@ https://<ngrok-domain>
       /sites/{alias}/*         -> registered app public main view
       /                        -> host-matched or default app site
       /platform/*              -> platform frontend
-      /*                       -> frontend fallback
+      /<remaining clean path>  -> host-matched or default app site through proc
+```
+
+CLI-started runtime through Caddy:
+
+```text
+https://<public-or-local-host>
+  -> Caddy :18080
+      preserve Host, X-Forwarded-Host, and public scheme
+  -> KDCube web proxy :<proxy-http-port>
+      apply the same platform/site route matrix as direct access
 ```
 
 Manual split services:
@@ -114,8 +162,9 @@ through Caddy first.
 KDCube runtime configuration is descriptor-driven. For this flow, edit the
 active descriptor set used by the running local stack:
 
-- `assembly.yaml` controls service ports, CORS, auth, and the frontend browser
-  config served by ingress at `/api/cp-frontend-config`
+- `assembly.yaml` controls service ports, CORS, auth, the control-plane mount,
+  trusted forwarded-protocol input, and the frontend browser config served by
+  ingress at `/api/cp-frontend-config`
 - `bundles.yaml` controls bundle config, including public integration URLs
 - `bundles.secrets.yaml` or the configured secrets provider controls secrets
 
@@ -214,10 +263,46 @@ ngrok http <proxy-http-port> --url https://<stable-ngrok-domain>
 You do not need Caddy for the CLI-started runtime. Docker Compose already starts
 the KDCube web proxy, and that proxy already routes frontend, ingress, and proc.
 
-### Caddy
+Do not use `--host-header=rewrite`. Host-selected application sites depend on
+the browser host reaching proc unchanged. Add the stable ngrok hostname to the
+site's `ui.main_view.site.hosts` declaration. Because ngrok terminates HTTPS,
+use `proxy.forwarded_proto.source: trusted_x_forwarded_proto` only when ngrok
+is the proxy's trusted ingress and callers cannot bypass it with caller-authored
+forwarded headers.
 
-Caddy is only needed for the manual split-services flow. It routes one local
-port to separately started frontend, ingress, and proc processes.
+### Caddy As A Full-Origin Adapter
+
+Use this optional shape for several local hostnames or local TLS while keeping
+the CLI-started KDCube proxy as the only route owner. When Caddy itself
+terminates TLS, its standard reverse-proxy headers already carry the correct
+scheme:
+
+```caddyfile
+workspace.local.test {
+  reverse_proxy 127.0.0.1:<proxy-http-port>
+}
+```
+
+Map the local hostname to `127.0.0.1`, list it in the site's `hosts`, and set:
+
+```yaml
+proxy:
+  forwarded_proto:
+    source: "trusted_x_forwarded_proto"
+```
+
+Use this source only when callers cannot bypass the trusted terminator and
+reach OpenResty with caller-authored forwarded headers.
+
+When ngrok terminates TLS in front of this Caddy adapter, use the global
+`trusted_proxies` block above and listen on the local HTTP port used as ngrok's
+target. Do not replace `X-Forwarded-Proto` with Caddy's `{scheme}` in that
+topology: `{scheme}` describes the inward ngrok-to-Caddy HTTP hop.
+
+### Caddy For Manual Split Services
+
+For the manual split-services flow, Caddy routes one local port to separately
+started frontend, ingress, and proc processes.
 
 Install once:
 
@@ -232,6 +317,13 @@ Put this file at:
 ```
 
 ```caddyfile
+{
+  servers {
+    trusted_proxies static 127.0.0.1/32 ::1/128
+    trusted_proxies_strict
+  }
+}
+
 :18080 {
   reverse_proxy /api/integrations/* 127.0.0.1:8020
   reverse_proxy /admin/integrations/* 127.0.0.1:8020
@@ -259,30 +351,30 @@ Use the actual port where the frontend process listens.
 > widgets on your own page at the same origin (so the browser auth cookie stays
 > same-site), you'd replace the catch-all `reverse_proxy /* <frontend-port>`
 > with a `file_server` for your site and keep the platform-path proxies above.
-> One gotcha: the frontend SPA references its hashed bundles at the ROOT
-> (`/assets/*`, `/img/*`), which collide with your site's own `/assets`. Route
-> those paths to serve the site file when it exists on disk and otherwise proxy
-> to the frontend — Caddy's `file` matcher does this:
+> The control-plane frontend files belong under the configured platform prefix,
+> not at root. For example, `/platform/chat` loads
+> `/platform/assets/index-....js` and `/platform/img/favicon.svg`; a
+> multi-segment prefix such as `/control/ui` similarly loads
+> `/control/ui/assets/index-....js`. Root `/assets/*` and `/img/*` remain
+> available to the root site.
 >
 > ```caddyfile
-> @kdcube path /api/* /sse/* /socket.io /socket.io/* /cb/socket.io /cb/socket.io/* /profile /profile/* /admin/* /monitoring/* /platform /platform/*
+> @kdcube path /api/* /sse/* /socket.io /socket.io/* /cb/socket.io /cb/socket.io/* /profile /profile/* /admin/* /monitoring/* /platform /platform/* /sites /sites/*
 > handle @kdcube {
 >   reverse_proxy 127.0.0.1:<proxy-http-port> {
 >     flush_interval -1
 >   }
 > }
->
-> @sharedAssets path /assets/* /img/*
-> handle @sharedAssets {
->   @siteHasFile file
->   handle @siteHasFile { file_server }
->   handle { reverse_proxy 127.0.0.1:<frontend-port> }
-> }
 > ```
 >
-> Without it, `/platform/chat` loads its HTML but the JS/CSS 404 and the page
-> renders blank. (The frontend's bundle names are hashed, so they never exist on
-> your site — the `file` check routes them correctly.)
+> In this composed-origin shape, the separate website owns `/`; KDCube's
+> host-selected/default site therefore does not own that root. Reserving
+> `/sites` and `/sites/*` keeps every enabled KDCube application site
+> reachable through its descriptor alias.
+>
+> If `/platform/chat` loads HTML but then requests `/assets/...`, `/img/...`, or
+> `/config.json`, the frontend artifact is stale and must be rebuilt from a
+> prefix-safe platform release.
 
 ### Frontend / Cognito
 
@@ -611,3 +703,25 @@ https://<ngrok-domain>/platform/callback
 For manual split services, use the local URL that the browser actually opens
 for that setup, for example `http://localhost:<frontend-port>/platform/callback`
 when the frontend is opened directly.
+
+A signed download, upload, callback, or consent URL that uses
+`http://<ngrok-domain>` means one proxy replaced the public scheme with an
+inward HTTP hop. Check the chain in order:
+
+1. ngrok enters the expected Caddy or OpenResty port;
+2. Caddy trusts only the local ngrok peer when Caddy is present;
+3. the active assembly selects `trusted_x_forwarded_proto` for OpenResty;
+4. the staged `config/nginx_proxy.conf` contains
+   `KDCUBE_FORWARDED_PROTO_SOURCE: trusted_x_forwarded_proto`.
+
+After changing the Caddyfile, validate and reload Caddy. After changing the
+assembly, refresh the KDCube runtime. Acceptance is an absolute URL minted from
+a real public request whose scheme is `https`, without relying on a redirect.
+
+```bash
+caddy validate --config ~/.kdcube/ngrok/site-app.Caddyfile --adapter caddyfile
+caddy reload --config ~/.kdcube/ngrok/site-app.Caddyfile --adapter caddyfile
+```
+
+Use `~/.kdcube/ngrok/Caddyfile` instead when operating the manual split-services
+shape.

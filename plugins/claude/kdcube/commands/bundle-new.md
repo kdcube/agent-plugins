@@ -14,6 +14,10 @@ defaults.** Required inputs before any file is written:
 - source/runtime mode for first local run (`local`, `git`, or `built-in`).
 - planned provider/consumer surface map; for MCP, state whether the app consumes
   servers, provides endpoints, or does both.
+- frontend intent when UI is planned: app-scoped main view, reusable widgets,
+  an installation-hosted website, or a combination. For a website, collect its
+  unique alias, whether it owns the unmatched clean root, and any host names
+  that should select it.
 - planned SDK building blocks reused (Tasks, Email, Telegram, Delivery, memory…).
 - first-run config keys + secret NAMES (values are never written to source).
 
@@ -60,6 +64,15 @@ Steps:
    - `tests/` with one smoke test that imports the entrypoint.
    - `ui/` ONLY if UI is planned (`main/` and/or `widgets/<alias>/`); shared SDK
      widgets (memories, usage_card) are referenced by `sdk://…` — never copied in.
+     If the main view is also a website, read
+     `repo:kdcube/app/ai-app/docs/sdk/bundle/bundle-website-integration-README.md`
+     and
+     `repo:kdcube/app/ai-app/docs/recipes/components/website-README.md`.
+     Configure `ui.main_view` to build the artifact and
+     `ui.main_view.site` to register that same artifact. One app contributes at
+     most one site; one installation serves many sites by loading many apps.
+     Use root-relative or document-relative asset URLs that remain valid under
+     `/sites/{alias}/`; do not hardcode a deployment hostname.
    - Make every lifecycle hook, decorated handler, service operation, and I/O
      call chain async end to end. Use async clients; isolate unavoidable bounded
      blocking calls with `await asyncio.to_thread(...)`.

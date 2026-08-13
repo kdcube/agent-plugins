@@ -15,7 +15,7 @@ KDCube's decorator names, descriptor keys, CLI flags, and runtime paths evolve
 between releases. An agent answering KDCube questions from training-time memory
 will teach you to hallucinate. These plugins ground the agent in current
 knowledge instead: a vendored Tier 1 documentation pack for offline work, the
-`kdcube-ai-app` checkout as the source of truth once onboarded, and the hosted
+`kdcube` checkout as the source of truth once onboarded, and the hosted
 documentation MCP at `https://kdcube.tech/mcp/docs` as a live surface.
 
 ## Claude Code
@@ -29,11 +29,13 @@ Add the marketplace, then install:
 
 | Plugin | What it ships |
 | --- | --- |
-| [`kdcube`](plugins/claude/kdcube/README.md) | The full build-and-operate toolkit: runtime bootstrap (`/runtime-init`), bundle scaffolding, configuration, testing, and release commands; operator and builder skills; a doc-reader subagent; and the offline Tier 1 docs pack. |
+| [`kdcube`](plugins/claude/kdcube/README.md) | The full build-and-operate toolkit: runtime bootstrap (`/kdcube:runtime-init`), bundle scaffolding, configuration, testing, and release commands; operator and builder skills; a doc-reader subagent; and the offline Tier 1 docs pack. |
 
-After install, run `/kdcube:init` to onboard the KDCube repo and
-verify the docs pack, then start with `/kdcube:runtime-init` for a
-fresh runtime or `/kdcube:bundle-new` for a new app.
+After install, run `/kdcube:init`. No KDCube or CLI installation is required
+before that command: when no runtime exists, it continues into
+`/kdcube:runtime-init`, installs or locates `kdcube-cli`, initializes KDCube,
+and then finishes the docs-pack onboarding. Use `/kdcube:bundle-new` for the
+first app.
 
 ## Repository layout
 

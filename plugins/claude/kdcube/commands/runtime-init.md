@@ -1,5 +1,5 @@
 ---
-description: "Initialize a KDCube runtime with kdcube-cli and seed required secrets using kdcube init --set-secret. Never print or persist secret values outside the runtime secrets file."
+description: "Install or locate kdcube-cli, initialize a local KDCube runtime, seed required secrets safely, and optionally expose its app websites and other surfaces through one stable public HTTPS origin."
 ---
 
 # /kdcube:runtime-init
@@ -13,6 +13,10 @@ Required operator inputs before running commands:
 - descriptors location only when the operator wants to initialize from a
   specific descriptor set;
 - runtime workdir only when the operator does not want the CLI default;
+- whether the runtime stays on this machine or also needs one stable public
+  HTTPS origin for app websites, another device, webhooks, callbacks, or
+  Telegram; when public, ask for the stable hostname and which app site should
+  own that hostname's clean root;
 - the Google OAuth client id for the default sign-in (it is public; this flow
   has no client secret), and optionally the Google email to grant the first
   admin;
@@ -56,16 +60,26 @@ Phase 2 (branches on the Phase 1 choice; one item is asked every time):
   offer to proceed with a placeholder client id: a bundle runtime with a
   `<FILL_ME>` client id cannot be signed into. An operator who genuinely wants
   no sign-in yet should pick `simple`, not bundle-with-placeholder. Also ask the
-  admin email to bootstrap as super-admin (optional).
+  admin email to bootstrap as super-admin (optional). Confirm that the Google
+  client allows the intended local UI origin and, when public HTTPS is selected,
+  that public origin. After startup reveals the actual proxy port, re-check the
+  local origin instead of assuming the default port.
 - cognito → region and user-pool / app-client ids (CLI §2.3e).
 - simple → nothing further; no external identity.
+- **reachability — always asked**: should the runtime stay local to this
+  machine, or also be reachable at one stable public HTTPS address? Explain
+  that one public origin can carry the control plane, APIs, streaming, and all
+  `/sites/{alias}/` website routes. When public is selected, offer ngrok,
+  cloudflared, or the operator's own ingress; ask for the stable hostname and
+  which enabled app site, if any, should own `/` for that host.
 
 Every scenario, before running init:
 
-- ask whether they also want the optional Telegram companion. If yes, it needs a
-  public HTTPS URL that reaches this machine: offer to stand up a tunnel (ngrok,
-  cloudflared, or their own domain) as the recommended default — not the only
-  way — and if the chosen tool is not installed, offer to install it. The bot
+- ask whether they also want the optional Telegram companion. If yes, reuse the
+  public HTTPS origin selected above or collect one now. Offer to stand up a
+  tunnel (ngrok, cloudflared, or their own domain) as the recommended default —
+  not the only way — and if the chosen tool is not installed, offer to install
+  it. The bot
   token is a secret and has **no flag**: the operator exports it as
   `KDCUBE_TELEGRAM_BOT_TOKEN`, never typed inline. The public URL is passed with
   `--enable-telegram --external-https-url "<url>"` (init-only). Tunnel mechanics:
@@ -134,8 +148,18 @@ Add the platform-source flag chosen above and any `--set-secret` pairs the
 operator provided. This is the compact core; the fuller walkthrough — exact
 JavaScript origins and the local UI port, plus the optional Telegram companion
 — is
-`repo:kdcube-ai-app/app/ai-app/docs/recipes/operations/install-clean-README.md`,
+`repo:kdcube/app/ai-app/docs/recipes/operations/install-clean-README.md`,
 readable once the repo is pinned.
+
+When a stable public origin was selected before init, add it with
+`--cors-origin https://<stable-host>`. After init and before the first start,
+update the staged `WORKDIR/config/assembly.yaml` to use
+`proxy.forwarded_proto.source: trusted_x_forwarded_proto` only when that tunnel
+or local proxy is the trusted ingress and untrusted callers cannot bypass it.
+For an app-hosted website, add the stable hostname to the chosen app's
+`ui.main_view.site.hosts`; every enabled site remains available through
+`/sites/{alias}/` on the same origin. Preserve the public Host and never add
+ngrok `--host-header=rewrite`.
 
 What a fresh init stages (no descriptors supplied): the **base complectation,
 already configured** — Connection Hub (identity, consent, delegated
@@ -222,8 +246,8 @@ Steps:
 
 1. Read `tier1/06-configure-and-run.md` and
    `tier1/05-runtime-config.md` before changing runtime state.
-   If the local runtime must be reachable by Telegram, OAuth/Cognito,
-   or another external callback provider, also read
+   If the local runtime must be reachable for an app website, another device,
+   Telegram, OAuth/Cognito, or another external callback provider, also read
    `tier1/09-local-public-ngrok.md`.
    These tier1 files are mirrors of the checkout. If `config/repos.yaml` is not
    pinned yet, run `/kdcube:init` first — it pins the repo and
@@ -236,7 +260,7 @@ Steps:
      — a lightweight bootstrap package that needs no platform checkout (it clones
      the platform itself at `kdcube init`). Editable install from a local repo
      (`pip install -e <repo>/app/ai-app/src/kdcube-ai-app/kdcube_cli`, see
-     `repo:kdcube-ai-app/app/ai-app/docs/recipes/operations/install-clean-README.md`)
+     `repo:kdcube/app/ai-app/docs/recipes/operations/install-clean-README.md`)
      is the developer variant. Report the command; install only with operator
      consent.
 
@@ -260,7 +284,10 @@ Steps:
    method with `--auth-type`; the recommended default is application-hosted
    login (`--auth-type bundle --client-id`, above). Other methods and their
    per-mode flags are CLI §2.3e —
-   `repo:kdcube-ai-app/app/ai-app/docs/service/cicd/cli-README.md#auth-flags`.
+   `repo:kdcube/app/ai-app/docs/service/cicd/cli-README.md#auth-flags`.
+   When the operator selected public HTTPS, include `--cors-origin` in this
+   initial command so the public browser origin is present in the staged
+   assembly from the beginning.
 
 5. Verify with:
 
@@ -290,11 +317,15 @@ kdcube start --workdir ~/.kdcube/kdcube-runtime/<tenant>__<project>
 Only after `kdcube info` shows the expected tenant/project and staged
 configuration.
 
-7. If the operator needs a public local DNS name for webhooks or
-   callbacks, follow `tier1/09-local-public-ngrok.md`: one ngrok HTTPS
-   origin through the local reverse proxy, descriptor-driven
-   `assembly.yaml` / `bundles.yaml` / `bundles.secrets.yaml` updates,
-   and no separate public proc URL.
+7. If the operator selected public HTTPS for an app website, another device,
+   webhooks, callbacks, or Telegram, follow
+   `tier1/09-local-public-ngrok.md`: one stable HTTPS origin through the local
+   web proxy; the public origin in CORS; trusted forwarded-scheme input at the
+   actual terminator boundary; the selected hostname in the app site's
+   `ui.main_view.site.hosts` when that site should own `/`; and no separate
+   public proc URL. Start ngrok only after `kdcube start` reveals the actual
+   proxy port, then verify the clean root, `/sites/{alias}/`, and
+   `/platform/chat` through the public origin.
 
 8. If the operator changed the platform source or descriptor set and wants the
    runtime rebuilt/restarted, use `kdcube refresh --tenant "$TENANT"
@@ -302,7 +333,7 @@ configuration.
    lifecycle; do not add a second manual stop/start unless diagnosing a
    failure. To change the authentication method on an already-initialized
    runtime, use `kdcube config apply` (CLI §2.3f,
-   `repo:kdcube-ai-app/app/ai-app/docs/service/cicd/cli-README.md#config-apply-auth`)
+   `repo:kdcube/app/ai-app/docs/service/cicd/cli-README.md#config-apply-auth`)
    instead of re-init.
 
 Output a compact table:

@@ -9,7 +9,7 @@
   "plugins": [
     {
       "name": "kdcube",
-      "description": "Claude Code app builder for backend-plus-frontend AI apps as KDCube bundles: CLI runtime init, bundle registration/configuration, widgets/main UI, APIs, tools, jobs, integrations, testing, release, and an offline Tier 1 docs pack. Reads KDCube knowledge from the local kdcube-ai-app checkout, with the hosted docs MCP at https://kdcube.tech/mcp/docs as a live fallback.",
+      "description": "Claude Code app builder for backend-plus-frontend AI apps as KDCube bundles: guided CLI runtime init, local and public app websites, bundle registration/configuration, widgets/main UI, APIs, tools, jobs, integrations, testing, release, and an offline Tier 1 docs pack. Reads KDCube knowledge from the local KDCube checkout, with the hosted docs MCP at https://kdcube.tech/mcp/docs as a live fallback.",
       "author": {
         "name": "KDCube",
         "url": "https://kdcube.tech"

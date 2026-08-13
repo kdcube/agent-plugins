@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Report when a tier1/ pack file no longer matches its source in the local
-# kdcube-ai-app checkout. Each pack file is a copy that keeps the source `id:`
+# KDCube checkout. Each pack file is a copy that keeps the source `id:`
 # (upstream path) and `updated_at` (version), so both are read from the file.
 #
 # Always exits 0; prints nothing unless a file diverges. The action depends on
@@ -17,15 +17,23 @@ TIER1="${PLUGIN_ROOT}/tier1"
 # repos.yaml holds the checkout path; without it there is nothing to compare to.
 [[ -f "$REPOS_YAML" ]] || exit 0
 
-KDCUBE_LOCAL=$(awk '
-  /^[[:space:]]*kdcube-ai-app:[[:space:]]*$/ { in_kd=1; next }
-  in_kd && /^[[:space:]]+local_path:[[:space:]]/ {
-    sub(/^[[:space:]]+local_path:[[:space:]]*/, "")
-    gsub(/^["'"'"']|["'"'"']$/, "")
-    print; exit
-  }
-  /^[a-zA-Z_-]+:[[:space:]]*$/ && in_kd { in_kd=0 }
-' "$REPOS_YAML")
+repo_local_path() {
+  local repo_key="$1"
+  awk -v repo_key="$repo_key" '
+    $0 ~ "^[[:space:]]*" repo_key ":[[:space:]]*$" { in_repo=1; next }
+    in_repo && /^[[:space:]]+local_path:[[:space:]]/ {
+      sub(/^[[:space:]]+local_path:[[:space:]]*/, "")
+      gsub(/^["'"'"']|["'"'"']$/, "")
+      print; exit
+    }
+    /^[a-zA-Z0-9_-]+:[[:space:]]*$/ && in_repo { in_repo=0 }
+  ' "$REPOS_YAML"
+}
+
+KDCUBE_LOCAL="$(repo_local_path kdcube)"
+if [[ -z "$KDCUBE_LOCAL" ]]; then
+  KDCUBE_LOCAL="$(repo_local_path kdcube-ai-app)"
+fi
 [[ -n "${KDCUBE_LOCAL:-}" && -d "$KDCUBE_LOCAL" ]] || exit 0
 
 _fm() {  # frontmatter value: _fm <file> <key>
@@ -38,8 +46,19 @@ shopt -s nullglob
 for pack in "$TIER1"/*.md; do
   base="$(basename "$pack")"
   id="$(_fm "$pack" id)"
-  [[ "$id" == repo:kdcube-ai-app/* ]] || continue
-  src="${KDCUBE_LOCAL}/${id#repo:kdcube-ai-app/}"
+  case "$id" in
+    repo:kdcube/*)
+      src="${KDCUBE_LOCAL}/${id#repo:kdcube/}"
+      ;;
+    repo:kdcube-ai-app/*)
+      # Compatibility with generated Tier 1 files whose source frontmatter
+      # has not yet migrated to the canonical symbolic repository name.
+      src="${KDCUBE_LOCAL}/${id#repo:kdcube-ai-app/}"
+      ;;
+    *)
+      continue
+      ;;
+  esac
 
   # Source doc gone from the checkout: the pack has a doc the checkout lacks.
   if [[ ! -f "$src" ]]; then
@@ -64,7 +83,7 @@ done
 
 [[ -z "$behind" && -z "$ahead" && -z "$unclear" ]] && exit 0
 
-echo "[kdcube] tier1 pack diverges from the local kdcube-ai-app checkout"
+echo "[kdcube] tier1 pack diverges from the local KDCube checkout"
 echo "  (checkout HEAD $(git -C "$KDCUBE_LOCAL" rev-parse --short HEAD 2>/dev/null || echo '?') — the checkout is authoritative)."
 [[ -n "$behind"  ]] && echo "  BEHIND the checkout:${behind}"
 [[ -n "$ahead"   ]] && echo "  AHEAD of the checkout (pack knows a platform you are NOT running):${ahead}"
