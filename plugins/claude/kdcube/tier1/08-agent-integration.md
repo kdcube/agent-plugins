@@ -3,7 +3,7 @@ id: repo:kdcube-ai-app/app/ai-app/docs/sdk/bundle/bundle-agent-integration-READM
 title: "Bundle Agent Integration"
 summary: "Canonical bundle guide for wiring React agents, bundle-local tools and skills, MCP connectors, bundle-served MCP endpoints, and Claude Code subagents with deployable auth and network requirements."
 tags: ["sdk", "bundle", "agents", "react", "claude-code", "tools", "skills", "mcp", "deployment"]
-keywords: ["bundle agent integration", "React tool config", "skill config", "event_source_reader", "bundle served MCP", "Claude Code MCP", "ClaudeCodeAgent", "mcp_base_url", "agent runtime context"]
+keywords: ["bundle agent integration", "React tool config", "skill config", "event_source_reader", "bundle served MCP", "Claude Code MCP", "ClaudeCodeAgent", "mcp_base_url", "agent runtime context", "delegated automation bearer", "headless admin agent mcp", "bearer prefix normalization", "mcp sdk fastmcp mcpserver split"]
 updated_at: 2026-07-30
 see_also:
   - repo:kdcube-ai-app/app/ai-app/docs/sdk/bundle/bundle-runtime-README.md
@@ -1097,6 +1097,53 @@ Route shape:
 For MCP, `public` and `operations` are URL families. They are not proc-side
 auth modes. The descriptor chooses a public, bundle-owned, or managed boundary.
 The example below is bundle-owned; managed auth is enforced before app dispatch.
+
+### Automation identities reach bundle MCP routes
+
+Bundle MCP routes are header-only (no cookies, no query-param auth). Since
+kdcube `9278cf256` + `ee5574f37` they also resolve Connection Hub delegated
+automation bearers (`kst1.` session tokens) through a narrow, never-reject
+slice: a verified all-resources admin card projects the GRANTOR's platform
+roles onto `request.state.user_session`, and anything else — unknown, invalid,
+resource-scoped for another door — resolves to the anonymous session so
+downstream gates fail closed. Managed-mode endpoints (`mcp.<alias>.auth.mode:
+managed`) verified these tokens all along; the slice extends the headless
+admin lane to bundle-owned endpoints. This is the pattern for a headless admin
+agent: mint an all-resources automation access whose grantor holds an admin
+role, and the bundle's own gate (reading `request.state.user_session`) sees
+those roles. Deployments on earlier platform builds only have the
+managed-mode lane.
+
+### Client token hygiene: normalize the `Bearer ` prefix
+
+Operator configs conventionally accept tokens with an embedded `Bearer `
+prefix; every client that builds an `Authorization` header must normalize
+first (strip a leading `Bearer `, then prepend exactly one). Sending
+`Bearer Bearer kst1…` makes the verifier parse a token that starts with
+`Bearer ` — a malformed-token 401 that looks like an auth-stack failure and
+costs a real debugging session. The SDK-side reference is the pub clients'
+`_normalize_bearer_token` idiom.
+
+### The MCP SDK import split: `FastMCP` is 1.x, `MCPServer` is 2.x
+
+The MCP python SDK renamed the server class in 2.0: `mcp.server.fastmcp.FastMCP`
+(1.x; takes `stateless_http=True`) became `mcp.server.mcpserver.MCPServer`
+(2.x; statelessness moved to the transport/dispatch layer). The platform
+runtime image ships 2.x while local venvs commonly run 1.x, so an MCP app
+factory imports both ways or it works in tests and 500s in proc
+("mcp server SDK is not installed"):
+
+```python
+try:
+    from mcp.server.fastmcp import FastMCP as ServerClass  # mcp 1.x
+    server_kwargs = {"stateless_http": True}
+except ImportError:
+    from mcp.server.mcpserver import MCPServer as ServerClass  # mcp 2.x
+    server_kwargs = {}
+```
+
+The `.tool()`/`.run()` surface is compatible across both. Worked example:
+`press.linkedin@2026-08-13` `services/mcp_app.py` (applications repo).
 
 MCP service shape:
 

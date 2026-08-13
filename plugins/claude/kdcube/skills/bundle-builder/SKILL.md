@@ -212,6 +212,16 @@ KDCube runtime and the relevant route, widget, API, or chat probe actually ran.
   `04-write.md#1b1-canonical-app-package`;
 - do not place product implementation beside `entrypoint.py`; keep the root
   sparse and use documented, responsibility-named modules under folders;
+- admin widgets gate by `user_types=("privileged",)` with an EMPTY roles list —
+  never a multi-role `roles=` list (role lists are ANY-OF; a pair reads as a
+  conjunction in older tile filters). See `10-widget-integration.md`,
+  "The admin-widget visibility rule";
+- `surfaces.as_provider.bundle.visibility.allowed_roles` clamps listing and
+  widget serving only — `@api`/`@mcp` dispatch must gate itself from the same
+  knob. See `05-runtime-config.md`, "The bundle-level clamp rule";
+- a bundle MCP factory dual-imports the SDK server class (`FastMCP` on mcp
+  1.x, `MCPServer` on 2.x) — a 1.x-only import 500s on the runtime image. See
+  `08-agent-integration.md`, "The MCP SDK import split";
 - do not use synchronous I/O in lifecycle hooks, handlers, services, or their
   call chains; the proc is concurrent asyncio, and `async def` around blocking
   code still blocks the event loop. The existing `get_user_prop`,

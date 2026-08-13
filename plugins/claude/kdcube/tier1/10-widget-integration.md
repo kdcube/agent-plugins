@@ -3,7 +3,7 @@ id: repo:kdcube-ai-app/app/ai-app/docs/sdk/bundle/bundle-widget-integration-READ
 title: "Bundle Widget Integration"
 summary: "Bundle widget UI contract: source-folder widget apps, runtime config handshake, operation URL construction, Data Bus publishing, auth propagation, and the recommended pattern when a capability is both widget and operation."
 tags: ["sdk", "bundle", "widget", "iframe", "frontend", "integrations", "telegram", "memory", "data-bus"]
-keywords: ["bundle widget contract", "iframe widget contract", "widget source folder", "static widget build", "runtime config handshake", "operation url construction", "data bus publishing", "auth propagation to widget", "widget and operation dual pattern", "shared sdk widget source", "telegram widget components", "memory widget component", "bundle widget integration"]
+keywords: ["bundle widget contract", "iframe widget contract", "widget source folder", "static widget build", "runtime config handshake", "operation url construction", "data bus publishing", "auth propagation to widget", "widget and operation dual pattern", "shared sdk widget source", "telegram widget components", "memory widget component", "bundle widget integration", "admin widget visibility rule", "widget roles any-of", "privileged user_types widget"]
 updated_at: 2026-07-16
 see_also:
   - repo:kdcube-ai-app/app/ai-app/docs/how-to-integrate-with-kdcube-apps-README.md
@@ -247,6 +247,22 @@ does not treat config-only entries as user-visible widget surfaces.
 Use `enabled.widget.<alias>: false` to hide or disable a decorated widget alias.
 This is separate from `ui.widgets.<alias>.enabled`, which controls
 whether a static build config is active for that alias.
+
+### The admin-widget visibility rule: `user_types=("privileged",)`, roles empty
+
+Widget `roles` lists mean ANY-OF at every enforcement point — the proc widget
+filter is set intersection, and the control-plane app scene matches it
+(kdcube `8e2e08e9b`). An admin-only widget still declares
+`user_types=("privileged",)` with an EMPTY roles list: privileged rank already
+means "the session holds an admin role", the server-side listing filter
+enforces it, and there is no client-side roles list left to re-interpret. The
+concrete break a multi-role list produced: a widget declaring both admin roles
+disappeared for an admin holding only one of them while the server kept
+returning it — the tile filter read the pair as a conjunction. Bundle-wide
+access is a separate, single declaration:
+`surfaces.as_provider.bundle.visibility.allowed_roles` (see
+[Bundle Runtime Configuration](../../configuration/bundle-runtime-configuration-and-secrets-README.md),
+"The bundle-level clamp rule").
 
 ## Inherited Widget Aliases
 
