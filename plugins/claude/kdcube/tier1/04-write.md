@@ -343,7 +343,6 @@ Practical hook rule:
 
 - `on_bundle_load(...)` = one-time per process per tenant/project setup
 - `on_props_changed(...)` = reconcile long-lived state after effective prop change
-- `pre_run_hook(...)` = request-time validation or lazy reconcile before execution
 - `on_turn_completed(...)` = fast per-turn cleanup after success, error, or
   cancellation; do not perform expensive reporting or user-facing delivery there
 
