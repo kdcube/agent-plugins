@@ -89,6 +89,7 @@ the map below.
 | Configure & run | `repo:kdcube/app/ai-app/docs/sdk/bundle/build/how-to-configure-and-run-bundle-README.md` |
 | Test | `repo:kdcube/app/ai-app/docs/sdk/bundle/build/how-to-test-bundle-README.md` |
 | Release content | `repo:kdcube/app/ai-app/docs/sdk/bundle/build/how-to-release-bundle-content-README.md` |
+| Serve SEVERAL agents from one app: agent ids in `surfaces.as_consumer.agents`, per-agent admin config, per-runtime tool wiring (React vs Claude Code), model picker, per-agent grants | `repo:kdcube/app/ai-app/docs/recipes/apps/app-with-agents-README.md`, `repo:kdcube/app/ai-app/docs/configuration/bundles-descriptor-README.md` |
 | Contract test suite | `repo:kdcube/app/ai-app/src/kdcube-ai-app/kdcube_ai_app/apps/chat/sdk/tests/bundle/run_bundle_suite.py` — run `python -m kdcube_ai_app.apps.chat.sdk.tests.bundle.run_bundle_suite --bundle-path <app>` |
 
 **The `tier1/` pack is a cache — the checkout wins.** The plugin ships these docs
@@ -159,6 +160,7 @@ Concept + config first:
 | The OAuth authorization-server protocol (PKCE, DCR, consent, token issue) | `repo:kdcube/app/ai-app/docs/sdk/solutions/connections/delegated-credentials/oauth-delegated-credential-protocol-adapter-README.md` |
 | Two gates + demand-driven per-agent/per-account consent; `connected_accounts` contract | `repo:kdcube/app/ai-app/docs/sdk/solutions/connections/authenticated-mcp/authenticated-mcp-README.md`, `repo:kdcube/app/ai-app/docs/sdk/solutions/connections/claim-driven-consent/claim-driven-consent-README.md` |
 | Bounded automation access (script/CI token with a TTL) | `repo:kdcube/app/ai-app/docs/recipes/connections/create-delegated-automation-access-README.md` |
+| An app's OWN agent acting for the user: one client entity per agent id (`kdcube-agent:<app>:<agent>`), per-agent grant, chat consent card | `repo:kdcube/app/ai-app/docs/sdk/solutions/connections/agent-acting-for-user/agent-acting-for-user-README.md` |
 
 **App as platform authority** — the user's own app hosts login / is the auth provider:
 

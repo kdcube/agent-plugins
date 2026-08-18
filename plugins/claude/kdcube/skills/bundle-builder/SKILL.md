@@ -83,7 +83,8 @@ Optional, only when relevant:
 - `tier1/07-release-content.md` — only after the user explicitly
   agrees to commit/tag/push/release.
 - `tier1/08-agent-integration.md` — when the bundle uses React tools/
-  skills, file-producing tools, MCP, or Claude Code subprocesses.
+  skills, file-producing tools, MCP, or Claude Code subprocesses, or serves
+  more than one agent.
 - `tier1/09-local-public-ngrok.md` — when local KDCube must be reachable
   through public HTTPS for an app-hosted website, another device, Telegram
   webhooks, OAuth/Cognito callbacks, or remote callback/control flows.
@@ -222,6 +223,32 @@ KDCube runtime and the relevant route, widget, API, or chat probe actually ran.
 - a bundle MCP factory dual-imports the SDK server class (`FastMCP` on mcp
   1.x, `MCPServer` on 2.x) — a 1.x-only import 500s on the runtime image. See
   `08-agent-integration.md`, "The MCP SDK import split";
+- an app declares its agents in bundle props as a MAP under
+  `surfaces.as_consumer.agents`, keyed by agent id — as many agents as the
+  product needs, each with its own tools/skills/models, and
+  `surfaces.as_consumer.default_agent` naming the one that serves a caller that
+  names none. Declare them in the descriptor; do not infer an app's agents from
+  code or assume a single agent. See
+  `repo:kdcube/app/ai-app/docs/configuration/bundles-descriptor-README.md` and
+  the recipe
+  `repo:kdcube/app/ai-app/docs/recipes/apps/app-with-agents-README.md`;
+- the agent id is an IDENTITY, not a display label: the platform derives the
+  agent's delegated-client id from it (`kdcube-agent:<bundle_id>:<agent_id>`),
+  and per-agent consent grants, the per-turn bearer for `delegated: true` MCP
+  connections, and the entity a user revokes in Connection Hub are all keyed by
+  it. Do not rename an agent id casually — it orphans every grant users already
+  gave it — and do not let an empty or invented id reach the resolution seams;
+  a demand carrying no agent identity degrades the chat consent card into a
+  generic "Open Connection Hub" with nothing for the user to approve. Resolve
+  the id from runtime context and the app id from the running bundle spec;
+- the two agent runtimes do not inherit each other's wiring: React takes its
+  catalog from `surfaces.as_consumer.agents.<agent>.tools`, Claude Code takes
+  Claude built-ins plus the Claude MCP config written into its workspace
+  (`ClaudeCodeAgentConfig` / `ClaudeCodeWorkspaceConfig` → `.mcp.json`,
+  `.claude/settings.local.json`, `CLAUDE.md`). A capability both runtimes need
+  is two pieces of work; `surfaces.as_consumer.mcp.services` does not configure
+  Claude Code, and a Claude workspace file never enters the React catalog. See
+  `08-agent-integration.md`, "Agent Surfaces";
 - do not use synchronous I/O in lifecycle hooks, handlers, services, or their
   call chains; the proc is concurrent asyncio, and `async def` around blocking
   code still blocks the event loop. The existing `get_user_prop`,
