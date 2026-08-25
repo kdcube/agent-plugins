@@ -5,7 +5,9 @@ One dated file per decision or implementation round, in docs/journal/, named
 `YYYY-MM-DD-<topic>.md`. This is the app's memory of WHY — read the latest entry
 before touching in-flight work, and add a new one when you decide something a
 future builder shouldn't have to re-derive. Keep it short and specific.
-The canonical package contract is in `tier1/04-write.md`.
+The canonical package contract is in `tier1/04-write.md`. If the change spans
+several apps or repositories, the solution-level journal contract also applies:
+repo:kdcube-ai-app/app/ai-app/docs/sdk/bundle/build/how-to-journal-solution-work-README.md
 -->
 
 ## Summary

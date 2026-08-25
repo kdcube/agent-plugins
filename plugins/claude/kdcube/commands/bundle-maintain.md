@@ -64,6 +64,16 @@ Steps:
    Files, and Follow-Up. Keep `interface/README.md` and the relevant `docs/` page
    in sync with what changed.
 
+   When the change spans more than one app or repository (several bundles, a
+   content repo, descriptors, procedures), the solution-level journal contract
+   applies on top of the app journal: one central entry in the operator's
+   designated solution repo, reciprocal `## Related Journals` links between the
+   indexes, pointer indexes for things whose history lives centrally, and
+   timestamps taken from the clock (`date`), never from narrative. Follow
+   `repo:kdcube-ai-app/app/ai-app/docs/sdk/bundle/build/how-to-journal-solution-work-README.md`;
+   if no solution journal home exists yet, ask the operator which repository
+   should carry it before inventing one.
+
 6. Stop before release actions unless the operator explicitly approves
    `/kdcube:bundle-release`.
 
