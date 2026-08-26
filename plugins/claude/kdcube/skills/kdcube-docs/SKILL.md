@@ -55,7 +55,7 @@ the map below.
 | Topic | repo: ref |
 |-------|-----------|
 | Auth & authorization of a request; user classes | `repo:kdcube/app/ai-app/docs/service/auth/auth-README.md` |
-| Sessions (bundle-scoped, federated identity) | `repo:kdcube/app/ai-app/docs/service/auth/bundle-session-auth-README.md` |
+| Application-hosted platform login and sessions | `repo:kdcube/app/ai-app/docs/service/auth/app-hosted-platform-login-and-session-README.md` |
 | Processor entry point (queue claim, execution) | `repo:kdcube/app/ai-app/docs/arch/proc/processor-arch-README.md` |
 | Ingress entry point (external event inception) | `repo:kdcube/app/ai-app/docs/arch/ingress/events-inception-README.md` |
 | Conversation event bus (chat stream) + data bus | `repo:kdcube/app/ai-app/docs/service/comm/conversation-event-bus-and-data-bus-README.md` |
@@ -166,7 +166,7 @@ Concept + config first:
 
 | Capability | repo: ref |
 |---|---|
-| Host login / make your app KDCube's platform authority | `repo:kdcube/app/ai-app/docs/recipes/connections/platform-authority/host-platform-authority-in-bundle-README.md` |
+| Host login / make your app KDCube's platform authority | `repo:kdcube/app/ai-app/docs/recipes/connections/platform-authority/host-platform-login-in-app-README.md` |
 | Authority provider runtime + projection into KDCube sessions | `repo:kdcube/app/ai-app/docs/sdk/solutions/connections/authority-providers/authority-provider-runtime-README.md`, `repo:kdcube/app/ai-app/docs/sdk/solutions/connections/authority-projection/authority-projection-README.md` |
 
 **Cross-cutting**
