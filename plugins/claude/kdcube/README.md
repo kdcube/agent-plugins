@@ -1,9 +1,10 @@
 # kdcube
 
-A Claude Code plugin that turns Claude into an actionable KDCube app
-builder: initialize a local runtime, register and configure bundles,
-maintain bundle repos, test them, and release them only after explicit
-operator approval. It is informed by the canonical Tier 1 build pack
+A Claude Code plugin that turns Claude into both a KDCube app engineer and a
+KDCube runtime DevOps operator: initialize and operate local runtimes, register
+and configure apps, inspect status and logs, maintain app repositories, test
+them, and release them only after explicit operator approval. It is informed
+by the canonical Tier 1 build pack
 and reads KDCube ground truth straight from a local `kdcube`
 checkout (docs + source) via the `kdcube-docs` skill and its index,
 cloning the repo on onboarding when it is missing.
@@ -14,8 +15,10 @@ Tier 1 handoff docs that a user's Claude Code session can actually load.
 
 ## Orientation Card
 
-KDCube is a self-hosted runtime for AI agents and apps - one installation
-operates many Git-managed applications serving many users.
+KDCube is a self-hosted application runtime and SDK - one installation
+operates many Git-managed applications serving many users. An application may
+host agents, but it may also consist entirely of APIs, UI, events, jobs, MCP,
+storage, or other application services.
 
 What this plugin builds: **apps**. With agents or without, with a frontend or
 without, complex or simple - but always concurrent and async. An app declares
@@ -46,6 +49,10 @@ ground truth in the local KDCube repo.
 - **One planning agent** that combines the bundle-author task facets
   (creator, integrator, configurator, deployer, local QA, integration
   QA, doc reader) per the official handoff contract.
+- **KDCube runtime DevOps** through the `kdcube-operator` skill and
+  `/kdcube:runtime-init`: prepare and start runtimes, apply descriptor-owned
+  configuration, refresh platform releases, reload apps, inspect status and
+  logs, and carry the configure -> apply -> verify loop.
 - **Tier 1 pack** bundled at `tier1/` — the agent reads these
   as its baseline knowledge of how to build/configure/test/release a
   KDCube bundle.
@@ -164,8 +171,8 @@ bin/
 
 ## Scope boundary
 
-The plugin is for **building and operating bundles**. It is not for
-maintaining the KDCube platform itself.
+The plugin is for **building KDCube apps and operating KDCube deployments**.
+It is not for maintaining the KDCube platform source itself.
 
 The plugin reads the local `kdcube` repo as ground truth; it does
 not edit that repo as part of bundle work.

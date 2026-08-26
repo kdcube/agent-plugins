@@ -3,7 +3,7 @@ id: repo:kdcube-ai-app/app/ai-app/docs/configuration/bundle-runtime-configuratio
 title: "Bundle Runtime Settings, Configuration, and Secrets"
 summary: "Canonical author-facing configuration model for bundle code: how platform settings, bundle props and secrets, and user-scoped state are read, written, owned, stored, and exported."
 tags: ["sdk", "configuration", "bundle", "props", "secrets"]
-keywords: ["programmatic configuration access", "platform settings and secrets", "bundle scoped props and secrets", "user scoped props and secrets", "helper api selection", "ownership boundary", "live authority and export rules", "get_settings and get_secret", "bundle_prop and set_bundle_prop", "user prop and user secret CRUD", "get_secret", "service key override", "per-bundle provider key", "bundle level allowed_roles clamp", "bundle visibility allowed roles", "admin only bundle access"]
+keywords: ["programmatic configuration access", "platform settings and secrets", "bundle scoped props and secrets", "user scoped props and secrets", "helper api selection", "ownership boundary", "live authority and export rules", "get_settings and get_secret", "bundle_prop and set_bundle_prop", "user prop and user secret CRUD", "get_secret", "service key override", "per-bundle provider key"]
 updated_at: 2026-07-05
 see_also:
   - repo:kdcube-ai-app/app/ai-app/docs/sdk/bundle/bundle-properties-and-secrets-lifecycle-README.md
@@ -374,32 +374,6 @@ Common reserved paths:
 | `tools.agents` | SDK tool subsystem / ReAct runtime | legacy per-agent model-callable tool connections and allow-lists; prefer `surfaces.as_consumer.agents.*.tools` for new descriptors |
 | `surfaces.as_consumer.mcp.services` | MCP runtime/bootstrap | MCP client transport/auth config for MCP services the app consumes |
 | `mcp.<endpoint_alias>.auth` | proc MCP bridge or bundle MCP app | auth metadata for a bundle-provided `@mcp` endpoint; `mode: managed` is enforced by the platform bridge, absent `mode` is bundle-owned metadata |
-| `surfaces.as_provider.bundle.visibility.allowed_roles` | proc integrations routes | bundle-level access clamp (see the rule below) |
-
-### The bundle-level clamp rule: `allowed_roles` gates listing and serving; dispatch gates itself
-
-`surfaces.as_provider.bundle.visibility.allowed_roles` is the one bundle-level
-access declaration: sessions whose raw `kdcube:role:*` roles intersect the set
-see the bundle. Defaults are baked in code on
-`@bundle_entrypoint(allowed_roles=..., allowed_roles_config="surfaces.as_provider.bundle.visibility.allowed_roles")`,
-the descriptor overrides the set, and it is editable live in the AI Bundle
-Dashboard. An admin-only app declares its identity this way once and derives
-every surface from it.
-
-Know exactly what the platform enforces with it:
-
-| Lane | Platform-enforced by `allowed_roles`? |
-|---|---|
-| bundle listing (`/api/integrations/bundles`) | yes |
-| widget serving (legacy, lazy-build, deployed-static) | yes |
-| `@api` operation dispatch | no — per-endpoint visibility only |
-| `@mcp` dispatch | no — no bundle-level check at all |
-
-So an admin-only app closes the dispatch lanes itself: the `@api` handler and
-the `@mcp` factory read the same knob (`bundle_prop(...allowed_roles)`)
-against the request-attached session and fail closed (401 anonymous, 403
-non-matching) before serving anything. Registered worked example:
-`press.linkedin@2026-08-13` (applications repo).
 
 For provided MCP endpoints, `enabled.mcp.<alias>` only controls whether the
 endpoint is published. Endpoint auth policy lives separately under

@@ -82,7 +82,11 @@ rg "$SOURCE_PROJECT|$SOURCE_TENANT/$SOURCE_PROJECT" "$OUT_DIR"
 4. Initialize the new runtime from the edited export:
 
 ```shell
-kdcube init --tenant "$TARGET_TENANT" --project "$TARGET_PROJECT" --descriptors-location "$OUT_DIR" --build
+kdcube init --non-interactive \
+  --tenant "$TARGET_TENANT" \
+  --project "$TARGET_PROJECT" \
+  --descriptors-location "$OUT_DIR" \
+  --build
 ```
 
 5. After init, continue with the normal runtime loop: `refresh` for platform

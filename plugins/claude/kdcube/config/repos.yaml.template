@@ -5,7 +5,8 @@
 #   <workdir>/repo   (~/.kdcube/kdcube-runtime/<tenant>__<project>/repo)
 # resolved via `kdcube info` — that checkout matches the running platform. If no
 # runtime exists yet, init bootstraps one (pip install kdcube-cli; then
-# `kdcube init --upstream|--latest|--release`).
+# `kdcube init --non-interactive` with `--upstream`, `--latest`, or
+# `--release <ref>` after the plugin has collected the setup inputs).
 #
 # A hand-set local_path below is the DEVELOPER OVERRIDE: you already have your own
 # platform checkout and want the plugin to read that instead of the runtime's.

@@ -26,8 +26,9 @@ Steps:
      — a full checkout with docs that matches the running platform. Write it into
      `config/repos.yaml`.
    - If there is no runtime yet, create one: run `/kdcube:runtime-init`
-     (ensure the CLI, then `kdcube init --upstream` / `--latest` / `--release <ver>`
-     clones the chosen source into `<workdir>/repo`), then pin `config/repos.yaml`
+     (ensure the CLI, then `kdcube init --non-interactive` with `--upstream` /
+     `--latest` / `--release <ver>` clones the chosen source into
+     `<workdir>/repo`), then pin `config/repos.yaml`
      to `<workdir>/repo`.
 
    Do not **silently** pin a KDCube checkout you happened to find on disk

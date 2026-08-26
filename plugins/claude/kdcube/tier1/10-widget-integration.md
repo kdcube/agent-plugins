@@ -3,7 +3,7 @@ id: repo:kdcube-ai-app/app/ai-app/docs/sdk/bundle/bundle-widget-integration-READ
 title: "Bundle Widget Integration"
 summary: "Bundle widget UI contract: source-folder widget apps, runtime config handshake, operation URL construction, Data Bus publishing, auth propagation, and the recommended pattern when a capability is both widget and operation."
 tags: ["sdk", "bundle", "widget", "iframe", "frontend", "integrations", "telegram", "memory", "data-bus"]
-keywords: ["bundle widget contract", "iframe widget contract", "widget source folder", "static widget build", "runtime config handshake", "operation url construction", "data bus publishing", "auth propagation to widget", "widget and operation dual pattern", "shared sdk widget source", "telegram widget components", "memory widget component", "bundle widget integration", "admin widget visibility rule", "widget roles any-of", "privileged user_types widget"]
+keywords: ["bundle widget contract", "iframe widget contract", "widget source folder", "static widget build", "runtime config handshake", "operation url construction", "data bus publishing", "auth propagation to widget", "widget and operation dual pattern", "shared sdk widget source", "telegram widget components", "memory widget component", "bundle widget integration"]
 updated_at: 2026-07-16
 see_also:
   - repo:kdcube-ai-app/app/ai-app/docs/how-to-integrate-with-kdcube-apps-README.md
@@ -58,8 +58,8 @@ surface, config, visibility, APIs, tools, event policies, resolvers, storage,
 and tests. Use [Bundle Subsystem Integration](bundle-subsystem-integration-README.md)
 before mounting shared UI such as memory or canvas.
 
-For the full lifecycle of discovery, preload, build, request-time fallback,
-shared-storage locks, signatures, and concurrent workers, see
+For the full lifecycle of discovery, supervised preparation, side-effect-free
+serving, shared-storage locks, signatures, and concurrent workers, see
 [UI Components Lifecycle](./ui-components-lifecycle-README.md).
 
 For mounted bundle source edits and descriptor-backed widget config changes,
@@ -247,22 +247,6 @@ does not treat config-only entries as user-visible widget surfaces.
 Use `enabled.widget.<alias>: false` to hide or disable a decorated widget alias.
 This is separate from `ui.widgets.<alias>.enabled`, which controls
 whether a static build config is active for that alias.
-
-### The admin-widget visibility rule: `user_types=("privileged",)`, roles empty
-
-Widget `roles` lists mean ANY-OF at every enforcement point — the proc widget
-filter is set intersection, and the control-plane app scene matches it
-(kdcube `8e2e08e9b`). An admin-only widget still declares
-`user_types=("privileged",)` with an EMPTY roles list: privileged rank already
-means "the session holds an admin role", the server-side listing filter
-enforces it, and there is no client-side roles list left to re-interpret. The
-concrete break a multi-role list produced: a widget declaring both admin roles
-disappeared for an admin holding only one of them while the server kept
-returning it — the tile filter read the pair as a conjunction. Bundle-wide
-access is a separate, single declaration:
-`surfaces.as_provider.bundle.visibility.allowed_roles` (see
-[Bundle Runtime Configuration](../../configuration/bundle-runtime-configuration-and-secrets-README.md),
-"The bundle-level clamp rule").
 
 ## Inherited Widget Aliases
 
@@ -570,18 +554,19 @@ triggers a full rebuild via `build_command`.
 **How to force a rebuild**:
 
 - `touch` any non-ignored file under the widget's `src_folder` (changes
-  `mtime_ns` → changes the signature)
+  `mtime_ns` -> changes the signature), then run the supported app reload
 - change anything in `build_command` (e.g. add a no-op flag)
-- delete the signature file directly:
-  `rm <bundle_storage_root>/.ui.widgets/<safe_alias>.signature`
-- bump the bundle id (rarely useful for local development)
+- save a new immutable app ref or run `kdcube bundle reload <bundle_id>` after
+  a local source change
 
-**Concurrency**: startup preload is coordinated through Redis app-generation
-claims, so workers on ECS can divide app preload work instead of all taking the
-same app. The UI build itself still runs inside a shared-storage lock keyed by
-the bundle storage root, so request-time fallback and any missed preload case
-remain safe on EFS. Workers that arrive after the signature was written hit the
-cache and skip the build.
+Do not edit or delete runtime signatures directly. They are derived state; app
+source/config and the reload operation are the write surface.
+
+**Concurrency**: each proc owns bounded per-app preparation tasks and runs
+process-local `on_bundle_load`. The UI build runs inside a shared-storage lock
+keyed by the app storage root, so workers converge safely on EFS. Workers that
+arrive after the signature was written re-check it and skip duplicate
+publication. Requests only serve a ready prepared app and never own the build.
 
 The widget route serves the built app and supports SPA subpath fallback:
 

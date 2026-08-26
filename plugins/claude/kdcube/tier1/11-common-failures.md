@@ -15,10 +15,6 @@ keywords:
     "data bus boundary",
     "authored external events",
     "resolver ownership",
-    "widget roles any-of",
-    "mcp sdk import split",
-    "gitignore swallows widget sources",
-    "double bearer prefix 401",
   ]
 updated_at: 2026-07-16
 see_also:
@@ -256,6 +252,18 @@ visibility unless that is the explicit product policy.
 For inherited SDK widgets, the alias must match the inherited decorator alias.
 Config under `ui.widgets.memories` configures the existing `memories` widget; it
 does not create a new platform widget surface by itself.
+
+**Roles are matched ANY-OF, and an admin widget wants a user type.** Declaring
+two admin roles on a widget does not mean "either"; the app scene once filtered
+ALL-OF while the server filtered ANY-OF, and a widget declaring two roles
+vanished for a user holding one. For an admin-only surface prefer
+`user_types=("privileged",)` with no roles, and let the app's one visibility
+knob (`surfaces.as_provider.bundle.visibility.allowed_roles`) govern the rest.
+
+**`default_chat: true` already serves a chat widget.** It activates the
+inherited `chat` alias — the app's declared chat surface, served as an ordinary
+bundle widget. Declaring your own chat widget beside it mounts the same app
+twice; configure the inherited alias instead of adding a second one.
 
 Read:
 
@@ -596,65 +604,11 @@ Read:
 - [Cross-Runtime Context](../../../runtime/cross-runtime-context-README.md) — snapshot and restore anchors
 - [Fenced Runtime Bootstrap And Reduce](../../../runtime/fenced-runtime-bootstrap-and-reduce-README.md) — the fence contract
 
-## Recipe: Widget Role Lists Are ANY-OF — A Multi-Role List Hides The Tile
-
-Widget visibility roles are set intersection everywhere (proc filter; the
-control-plane app scene since kdcube `8e2e08e9b`). Declaring several admin
-roles on one widget reads as "helpful redundancy" but a pre-`8e2e08e9b`
-frontend treated the list as a conjunction — an admin holding one of the pair
-lost the tile ("this app serves in the background") while the server kept
-returning the widget. The durable form avoids the class entirely: admin
-widgets gate by user-type rank, not role lists.
-
-Fix in one line: admin widgets declare `user_types=("privileged",)` with an
-EMPTY roles list; bundle-wide access is the one
-`surfaces.as_provider.bundle.visibility.allowed_roles` declaration.
-
-Read:
-
-- [Bundle Widget Integration](../sdk/bundle/bundle-widget-integration-README.md) — "The admin-widget visibility rule"
-- [Bundle Runtime Configuration](../configuration/bundle-runtime-configuration-and-secrets-README.md) — "The bundle-level clamp rule"
-
-## Recipe: The MCP SDK Import Split — `FastMCP` Works Locally, 500s In Proc
-
-The MCP python SDK 2.0 renamed `mcp.server.fastmcp.FastMCP` to
-`mcp.server.mcpserver.MCPServer`. Local venvs commonly run 1.x while the
-runtime image ships 2.x, so a factory importing only `FastMCP` passes every
-local test and then answers every dispatch with 500 "mcp server SDK is not
-installed" in proc — the import guard's message hides a version split, not a
-missing package.
-
-Fix in one line: dual-import — `FastMCP(name, stateless_http=True)` on 1.x,
-`MCPServer(name)` on 2.x; the `.tool()`/`.run()` surface is compatible.
-
-Read:
-
-- [How To Integrate With KDCube Apps](../how-to-integrate-with-kdcube-apps-README.md) — bundle-served MCP; worked example `press.linkedin@2026-08-13` `services/mcp_app.py`
-
-## Recipe: A Root `lib/` Gitignore Swallows Widget Sources
-
-Repo-root ignore patterns written for Python build artifacts (`lib/`,
-`build/`, `dist/`) match ANYWHERE in the tree when unanchored — including a
-widget's `src/lib/` source directory. The widget builds and runs locally
-(files exist on disk), reviews green, and the sources silently never reach the
-repository; the break surfaces on the next clean checkout or another agent's
-build.
-
-Fix in one line: scope the re-include next to the app
-(`!path/to/ui/widgets/**/src/lib/**` under the offending pattern, or anchor
-the original as `/lib/`), and verify with `git check-ignore -v` over every
-widget source file before handing off.
-
 ## Triage Table
 
 | Symptom | First Check |
 | --- | --- |
 | Widget route says not visible | widget visibility config, not only API visibility. |
-| Admin's widget tile missing though the server returns it | multi-role `roles=` list on the widget; use `user_types=("privileged",)` with roles empty. |
-| `@api`/`@mcp` reachable by non-admins though the bundle is admin-only | `allowed_roles` clamps listing+widget serving only; gate dispatch in-handler from the same knob. |
-| Bundle MCP answers 500 "mcp server SDK is not installed" in proc | 1.x-only `FastMCP` import on the 2.x image; dual-import `MCPServer`. |
-| Automation token gets 401 as anonymous | doubled `Bearer ` prefix (normalize before sending), or the platform predates the delegated-bearer slice (kdcube `9278cf256`). |
-| Widget source files exist locally but never land in git | an unanchored root ignore (`lib/`) matches `src/lib/`; `git check-ignore -v` the sources. |
 | Static bundle loads HTML but assets 404 | built asset URLs are `/assets/...` instead of `./assets/...`. |
 | Widget calls wrong host | API client used embedding page origin instead of runtime base URL. |
 | Bundle import works in one process and fails in runtime | bundle-local imports are top-level instead of package-relative. |
@@ -678,4 +632,5 @@ widget source file before handing off.
 | A hosted CLI agent has no MCP tools although its `.mcp.json` is correct | the CLI side: the config must be named on the command line, the workspace must be recorded as trusted (or every `permissions.allow` entry is ignored), and no server may use a reserved name. Read the CLI's own session-init event. |
 | A hosted CLI agent's file reads appear in chat as its answer | tool results arrive as `user` events; render tool calls/results as activity rows, never as answer text. |
 | A hosted agent's MCP calls hang, then report the response as lost, while the server logged 200 | the call left the deployment and came back: the surface is the app's own, and a hop in between broke the stream — declare `self_hosted: true` on the connection (and let the surface answer JSON framing). |
+| A widget is invisible to a user who holds one of its declared roles | roles are ANY-OF; an admin surface should gate on `user_types`, not a role list. |
 | Two identical chat tiles in one scene | `default_chat: true` plus an app-declared chat widget — the inherited `chat` alias is already the app's chat surface. |

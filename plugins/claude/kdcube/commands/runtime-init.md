@@ -95,8 +95,10 @@ Every scenario, before running init:
   value into the environment and the command references `"$VAR"` — never typed,
   echoed, or written into chat, files, or logs (the clean-install procedure).
 
-Then run `kdcube init` with the assembled flags (Step 4). Once it succeeds, pin
-the runtime's repo — `<workdir>/repo` — into `config/repos.yaml` so the plugin
+Then run `kdcube init --non-interactive` with the assembled flags (Step 4).
+The plugin owns the setup conversation, so the CLI invocation must not open a
+second prompt sequence when Claude Code happens to provide a terminal. Once it
+succeeds, pin the runtime's repo — `<workdir>/repo` — into `config/repos.yaml` so the plugin
 resolves KDCube docs from it (the same pin `/kdcube:init` performs).
 Carry the flow through to the init and the pin; do not stop on an ambiguous
 "start now or fill first?" — finish, then report the checklist and one concrete
@@ -124,7 +126,8 @@ Recommended minimal bring-up:
 
 The default identity is application-hosted login (`--auth-type bundle`): the
 workspace app hosts the Google sign-in page and Connection Hub issues the
-KDCube session, so no external IdP is involved. Its one input is a Google **Web
+KDCube session, so no separate Cognito-style platform IdP deployment is
+required. Its one input is a Google **Web
 application** OAuth client id — public, no client secret — which the operator
 supplies; the agent asks for it and never creates or invents one. If the
 operator does not have one yet, walk them through obtaining it (a Google
@@ -137,6 +140,7 @@ setup, not bundle-with-placeholder.
 
 ```bash
 kdcube init \
+  --non-interactive \
   --tenant "$TENANT" \
   --project "$PROJECT" \
   --auth-type bundle \
@@ -218,6 +222,7 @@ Initialize the target from the edited export:
 
 ```bash
 kdcube init \
+  --non-interactive \
   --tenant "$TARGET_TENANT" \
   --project "$TARGET_PROJECT" \
   --descriptors-location "$OUT_DIR" \
@@ -232,14 +237,15 @@ Descriptor-backed first run:
 
 ```bash
 kdcube init \
+  --non-interactive \
   --tenant "$TENANT" \
   --project "$PROJECT" \
   --descriptors-location "<descriptor-dir>" \
-  --set-secret services.openai.api_key "<openai-key>" \
-  --set-secret services.anthropic.api_key "<anthropic-key>" \
-  --set-secret services.brave.api_key "<brave-key>" \
-  --set-secret services.git.http_token "<git-token>" \
-  --set-secret git.http_token "<git-token>"
+  --set-secret services.openai.api_key "$OPENAI_API_KEY" \
+  --set-secret services.anthropic.api_key "$ANTHROPIC_API_KEY" \
+  --set-secret services.brave.api_key "$BRAVE_API_KEY" \
+  --set-secret services.git.http_token "$GIT_HTTP_TOKEN" \
+  --set-secret git.http_token "$GIT_HTTP_TOKEN"
 ```
 
 Steps:
@@ -275,9 +281,10 @@ Steps:
      already done it, and rewriting a live key breaks issued sessions. In the
      checklist they are a statement that the CLI created them, not a task.
 
-4. Run `kdcube init` with `--tenant` and `--project`, plus the platform-source
-   flag chosen at the top (`--latest` / `--upstream` / `--release <ref>` /
-   `--path`) — the CLI clones that source into `<workdir>/repo`. Add
+4. Run `kdcube init --non-interactive` with `--tenant` and `--project`, plus
+   the platform-source flag chosen at the top (`--latest` / `--upstream` /
+   `--release <ref>` / `--path`) — the CLI clones that source into
+   `<workdir>/repo`. Add
    `--descriptors-location` only when a descriptor set is intentionally
    supplied. Add the `--set-secret` pairs the operator provided. Mask secret
    values in all user-facing output and summaries. Select the authentication
@@ -285,6 +292,9 @@ Steps:
    login (`--auth-type bundle --client-id`, above). Other methods and their
    per-mode flags are CLI §2.3e —
    `repo:kdcube/app/ai-app/docs/service/cicd/cli-README.md#auth-flags`.
+   The explicit non-interactive flag is mandatory for this plugin workflow:
+   Claude has already gathered every answer, and terminal allocation must not
+   change the command's behavior.
    When the operator selected public HTTPS, include `--cors-origin` in this
    initial command so the public browser origin is present in the staged
    assembly from the beginning.
