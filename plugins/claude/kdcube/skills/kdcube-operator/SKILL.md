@@ -37,7 +37,7 @@ the staged copies. You can change config two ways:
    edit it never saw is silently dropped. Edit → apply → RE-VERIFY the key is
    still there; if it vanished, something else wrote — use the CLI path.
 
-Descriptors are the ONLY write surface. The Redis props cache
+Plain descriptors are the configuration write surface. The Redis props cache
 (`kdcube:config:bundles:props:<tenant>:<project>:<bundle_id>`) is the
 platform's own staging of the descriptor state: read it for diagnosis
 ("what does the runtime actually see?"), NEVER write it — a hand-SET key is
@@ -48,8 +48,56 @@ staged hand edits not present in the seed are overwritten. When the live
 state may be newer than the seed, `kdcube config export` first (the safety
 valve), reconcile, then apply.
 
-Never put real secret values in source/seed descriptors or in git — only in
-`bundles.secrets.yaml` / the secret store / `--set-secret`.
+Never put real secret values in source/seed descriptors or in git. The selected
+secret provider is the live authority: descriptor files in `secrets-file`
+mode, host-vault after verified local activation, or the configured cloud
+provider.
+
+## Local host-vault activation
+
+The optional local host vault is a backend of the existing secret-manager
+contract. Provision its host service and enroll this deployment first. During
+shadow staging, keep the file provider active and configure these non-secret
+fields in `WORKDIR/config/assembly.yaml`:
+
+```yaml
+secrets:
+  provider: secrets-file
+  service:
+    backend: host-vault
+    host_vault:
+      address: host.docker.internal:7781
+      server_name: host.docker.internal
+      identity_dir: /absolute/service-owned/path/outside-the-workdir
+
+platform:
+  services:
+    proc:
+      exec:
+        py_code_exec_network_mode: auto
+```
+
+Then use the transactional CLI path:
+
+```shell
+kdcube secrets backend host-vault prepare --tenant "$TENANT" --project "$PROJECT" --dry-run
+kdcube secrets backend host-vault prepare --tenant "$TENANT" --project "$PROJECT"
+kdcube secrets backend host-vault stage --tenant "$TENANT" --project "$PROJECT" --dry-run
+kdcube secrets backend host-vault stage --tenant "$TENANT" --project "$PROJECT"
+kdcube secrets backend host-vault activate --tenant "$TENANT" --project "$PROJECT" --dry-run
+kdcube secrets backend host-vault activate --tenant "$TENANT" --project "$PROJECT" --yes
+```
+
+Activation changes the provider to `secrets-service`, recreates affected
+consumers, verifies real reads, and retains the owner-only files for rollback.
+The activation command is the provider-switch boundary because it performs
+parity, ordering, live-read verification, and rollback. If a pending activation
+marker blocks startup, run `kdcube secrets backend host-vault recover --tenant "$TENANT"
+--project "$PROJECT" --yes`. Confirm `kdcube secrets backend host-vault --help`
+exists; until that command ships in a published CLI, use a source-installed CLI
+matching the staged KDCube source. Read
+`repo:kdcube/app/ai-app/docs/service/secrets/host-vault-README.md` before
+provisioning or activation.
 
 ## Fast clone from an existing runtime
 
@@ -105,6 +153,49 @@ code, `bundle config apply --reload` for descriptor bundle changes, and
 
 App-authoring config goes in the app's `config/bundles.template.yaml` (props) and
 `config/bundles.secrets.template.yaml` (secret keys, no values).
+
+For one exact provider-backed secret, an authorized human or automation uses:
+
+```shell
+kdcube secrets metadata <key> --scope platform
+kdcube secrets set <key> --scope platform
+kdcube secrets get <key> --scope platform --output <private-file>
+kdcube secrets delete <key> --scope platform
+```
+
+Bundle targets add `--scope bundle --bundle-id <bundle-id>`. These are
+delegated operations: Connection Hub checks the caller's live Card and its
+`Once` or `Always` invocation policy on every call.
+
+The user provides the Card-bound authority to the operator or agent. KDCube's
+canonical command reads a delegated bearer from a hidden prompt or the first
+stdin line. For Connection Hub's convenience wrapper, run
+`connection-hub host authorize`: OAuth Authorization Code plus PKCE creates a
+Card-bound session in native credential storage, and
+`connection-hub secrets host ...` supplies that session to the same KDCube
+management library. The authority covers the exact granted API resources and
+operations. Host login, Docker control, and provider workload identity remain
+separate authorities.
+
+Use the separate owner-performed export ceremony to reconstruct descriptor
+artifacts from an explicit key manifest:
+
+```shell
+kdcube secrets export \
+  --platform-key services.brave.api_key \
+  --bundle-key app@1-0=provider.api_key \
+  --output-directory ./kdcube-secret-export-$(date +%Y%m%dT%H%M%S)
+```
+
+The selected KDCube identity provider authenticates the administrator in the
+browser. One exact approval and PKCE exchange creates a new `secrets.yaml` /
+`bundles.secrets.yaml` directory and leaves delegated Card authority
+unchanged. Read
+`repo:kdcube-ai-app/app/ai-app/docs/service/secrets/secret-management-cli-README.md`
+for the command and stdin contract, and
+`repo:kdcube/app/ai-app/docs/service/cicd/delegated-management-service-README.md`
+for the server authority model. Keep values in hidden input, private output,
+and approved secret stores.
 
 ## Apply: reload vs refresh
 

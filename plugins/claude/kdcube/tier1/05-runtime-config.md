@@ -13,6 +13,8 @@ see_also:
   - repo:kdcube-ai-app/app/ai-app/docs/configuration/bundles-descriptor-README.md
   - repo:kdcube-ai-app/app/ai-app/docs/configuration/bundles-secrets-descriptor-README.md
   - repo:kdcube-ai-app/app/ai-app/docs/configuration/assembly-descriptor-README.md
+  - repo:kdcube-ai-app/app/ai-app/docs/service/cicd/delegated-management-service-README.md
+  - repo:kdcube-ai-app/app/ai-app/docs/service/secrets/secret-management-cli-README.md
 ---
 # Bundle Runtime Settings, Configuration, and Secrets
 
@@ -619,6 +621,21 @@ It never exports:
 
 - user props
 - user secrets
+
+For a runtime whose selected provider is the live secret authority, an
+administrator can reconstruct an explicit platform/bundle key manifest with
+`kdcube secrets export`. KDCube displays the exact keys through
+its configured browser identity, then a one-use PKCE exchange writes a new
+`secrets.yaml` and `bundles.secrets.yaml` directory. This works for file,
+host-vault, and cloud providers without requiring provider key enumeration.
+Exact `metadata`, `get`, `set`, and `delete` commands use a live Card-bound
+credential through `kdcube secrets`; Connection Hub's host CLI is a
+native-session convenience wrapper over the same KDCube management library.
+See
+`repo:kdcube-ai-app/app/ai-app/docs/service/secrets/secret-management-cli-README.md`
+for the canonical commands and
+`repo:kdcube-ai-app/app/ai-app/docs/service/cicd/delegated-management-service-README.md`
+for the server authority contract.
 
 So the rule is:
 
