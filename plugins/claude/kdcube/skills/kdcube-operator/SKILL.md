@@ -19,11 +19,13 @@ Let `KDCUBE` = the CLI, `WORKDIR` = `~/.kdcube/kdcube-runtime/<tenant>__<project
 
 ## Descriptors: seed → staged
 
-Three descriptors define a runtime: **assembly.yaml** (tenant/project, auth,
-infra, platform settings), **bundles.yaml** (the app registry + each app's plain
-`config:`), **bundles.secrets.yaml** (secret KEYS + values). Source *seed*
-descriptors are staged into `WORKDIR/config/*.yaml`; the running services read
-the staged copies. You can change config two ways:
+The core descriptor set has six files: **assembly.yaml** (tenant/project,
+auth, infrastructure, platform settings), **gateway.yaml**, **economics.yaml**,
+**bundles.yaml** (the app registry + each app's plain `config:`),
+**secrets.yaml** (platform and user secret scopes), and
+**bundles.secrets.yaml** (deployment-bundle and user-bundle secret scopes).
+Source *seed* descriptors are staged into `WORKDIR/config/*.yaml`; the running
+services read the staged copies. You can change config two ways:
 
 1. **CLI** — `kdcube bundle <id> --set-config k v` / `--set-secret k v` (patches
    the staged descriptor for one app). Prefer this for single keys: it goes
@@ -146,7 +148,7 @@ code, `bundle config apply --reload` for descriptor bundle changes, and
 | Level | Operator sets it in | App reads it with |
 |-------|---------------------|-------------------|
 | Platform / global props | `assembly.yaml` (staged `WORKDIR/config/assembly.yaml`) | `get_settings()` |
-| Platform / global secrets | platform secrets descriptor / secret store | `await get_secret("canonical.key")` |
+| Platform / global secrets | platform secrets descriptor / secret store | `await get_secret("platform.canonical.key")` |
 | Deployment bundle props | `bundles.yaml` item `config:` (or `--set-config`) | `self.bundle_prop("path")` |
 | Deployment bundle secrets | `bundles.secrets.yaml` item `secrets:` (or `--set-secret`) | `await get_secret("b:path")` |
 | User-scoped props/secrets | set at runtime per user (not operator descriptors) | `await get_user_prop(...)` / `await get_secret("u:path")` |
@@ -178,17 +180,24 @@ operations. Host login, Docker control, and provider workload identity remain
 separate authorities.
 
 Use the separate owner-performed export ceremony to reconstruct descriptor
-artifacts from an explicit key manifest:
+artifacts from an exact key manifest:
 
 ```shell
 kdcube secrets export \
-  --platform-key services.brave.api_key \
+  --platform-key platform.services.brave.api_key \
   --bundle-key app@1-0=provider.api_key \
   --output-directory ./kdcube-secret-export-$(date +%Y%m%dT%H%M%S)
 ```
 
+Use `--all` instead of exact selectors for a complete administrator export.
+It freezes and confirms the current provider inventory, then writes every
+platform, deployment-bundle, user, and user-bundle value into the same literal
+`secrets.yaml` and `bundles.secrets.yaml` pair. With
+`kdcube config export --include-platform-descriptors`, provider-backed runtimes
+perform this whole export as part of the ordinary descriptor export.
+
 The selected KDCube identity provider authenticates the administrator in the
-browser. One exact approval and PKCE exchange creates a new `secrets.yaml` /
+browser. One approval and PKCE exchange creates a new `secrets.yaml` /
 `bundles.secrets.yaml` directory and leaves delegated Card authority
 unchanged. Read
 `repo:kdcube-ai-app/app/ai-app/docs/service/secrets/secret-management-cli-README.md`
