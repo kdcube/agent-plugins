@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- `rms` plugin entry (`.claude-plugin/marketplace.json`), installable as
+  `/plugin install rms@kdcube`. Ships the `rms` stdio MCP server and the
+  requirements capture/review loop, and fetches its own platform binary on
+  setup so neither a Rust nor a Node toolchain is required.
+- First marketplace entry sourced from another repository: `rms` uses a
+  `git-subdir` source pinned to a tag in `kdcube/rms-rs`, because the plugin
+  ships integration text the `rms` binary generates and hashes, and the two
+  must be released under one tag to stay in sync. README gains an
+  *External plugin sources* section documenting when this is appropriate.
+
 ## [0.4.0] - 2026-05-18
 
 ### Added

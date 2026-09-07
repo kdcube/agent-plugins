@@ -17,6 +17,22 @@
       "category": "development",
       "source": "./plugins/claude/kdcube",
       "homepage": "https://github.com/kdcube/agent-plugins/blob/main/plugins/claude/kdcube/README.md"
+    },
+    {
+      "name": "rms",
+      "description": "Requirements Management System for coding agents: capture requirements as a side-effect of coding work, keep an inbox-first review loop, mark implementations with traceable code markers, and validate conformance before declaring work done. Ships the rms stdio MCP server and fetches its own platform binary on setup — no Rust or Node toolchain required.",
+      "author": {
+        "name": "KDCube",
+        "url": "https://kdcube.tech"
+      },
+      "category": "development",
+      "source": {
+        "source": "git-subdir",
+        "url": "https://github.com/kdcube/rms-rs.git",
+        "path": "claude-plugin",
+        "ref": "v0.1.0"
+      },
+      "homepage": "https://github.com/kdcube/rms-rs/blob/main/claude-plugin/README.md"
     }
   ]
 }
