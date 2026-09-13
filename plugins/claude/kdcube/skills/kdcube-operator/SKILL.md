@@ -50,6 +50,21 @@ staged hand edits not present in the seed are overwritten. When the live
 state may be newer than the seed, `kdcube config export` first (the safety
 valve), reconcile, then apply.
 
+When an app ships `config/connection-hub.catalog.fragment.yaml`, check the
+active catalog before issuing Cards:
+
+```shell
+kdcube bundle catalog check --workdir "$WORKDIR" --catalog-fragment <fragment>
+kdcube bundle catalog apply --workdir "$WORKDIR" --catalog-fragment <fragment>
+kdcube bundle catalog check --workdir "$WORKDIR" --catalog-fragment <fragment>
+```
+
+`check` is read-only. `apply` adds absent declarations, preserves unrelated
+rows and conflicting live values, and never reloads Connection Hub or changes
+an existing Card. Show every conflict to the user, review `bundles.yaml`, and
+reload `connection-hub@1-0` only after the user approves the staged descriptor.
+Read the full contract in `…/docs/service/cicd/cli-README.md#catalog-fragments`.
+
 Never put real secret values in source/seed descriptors or in git. The selected
 secret provider is the live authority: descriptor files in `secrets-file`
 mode, host-vault after verified local activation, or the configured cloud
