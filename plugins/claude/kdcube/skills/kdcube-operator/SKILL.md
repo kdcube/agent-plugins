@@ -65,6 +65,15 @@ reload that app. Never merge app rows into Connection Hub and never imply that
 loading a new operation changes an existing Card. Read the full contract in
 `…/docs/service/cicd/cli-README.md#catalog-check`.
 
+When an existing Connection Hub base catalog already owns an app's rows, move
+their complete ownership in one reviewed `bundles.yaml` revision: add the
+app-owned declaration, remove that app's capability rows and direct resource
+from the base, and remove only that app's namespace from a shared named-services
+resource. Preserve the shared resource and its sibling namespaces. The IDs stay
+the same, so the move grants nothing new and existing Cards keep their exact
+selection. Apply the complete revision before reloading the app; a partial move
+is correctly rejected as duplicate ownership.
+
 Never put real secret values in source/seed descriptors or in git. The selected
 secret provider is the live authority: descriptor files in `secrets-file`
 mode, host-vault after verified local activation, or the configured cloud
