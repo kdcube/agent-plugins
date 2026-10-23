@@ -156,28 +156,25 @@ code, `bundle config apply --reload` for descriptor bundle changes, and
 App-authoring config goes in the app's `config/bundles.template.yaml` (props) and
 `config/bundles.secrets.template.yaml` (secret keys, no values).
 
-For one exact provider-backed secret, an authorized human or automation uses:
+To set, inspect, read or delete one exact provider-backed secret, use the
+Connection Hub CLI: **Set a secret with the Connection Hub CLI (super-admin)**
+below is the default path. `connection-hub host authorize` keeps the
+Card-bound session in the machine's native credential store, so no bearer is
+ever copied to the operator or an agent. Do not ask the person for a bearer
+for this task.
 
-```shell
-kdcube secrets metadata <key> --scope platform
-kdcube secrets set <key> --scope platform
-kdcube secrets get <key> --scope platform --output <private-file>
-kdcube secrets delete <key> --scope platform
-```
+Every secret operation is delegated: Connection Hub checks the caller's live
+Card and its `Once` or `Every time` (`always`) invocation policy on every
+call. The authority covers the exact granted API resources and operations.
+Host login, Docker control, and provider workload identity remain separate
+authorities.
 
-Bundle targets add `--scope bundle --bundle-id <bundle-id>`. These are
-delegated operations: Connection Hub checks the caller's live Card and its
-`Once` or `Every time` (`always`) invocation policy on every call.
-
-The user provides the Card-bound authority to the operator or agent. KDCube's
-canonical command reads a delegated bearer from a hidden prompt or the first
-stdin line. For Connection Hub's convenience wrapper, run
-`connection-hub host authorize`: OAuth Authorization Code plus PKCE creates a
-Card-bound session in native credential storage, and
-`connection-hub secrets host ...` supplies that session to the same KDCube
-management library. The authority covers the exact granted API resources and
-operations. Host login, Docker control, and provider workload identity remain
-separate authorities.
+Advanced/protocol reference only: the plain `kdcube secrets
+metadata|set|get|delete <key> --scope platform` commands (bundle targets add
+`--scope bundle --bundle-id <bundle-id>`) speak the same protocol but read a
+delegated bearer from a hidden prompt or the first stdin line. That bearer
+step belongs only to this direct-command path, for automation that already
+holds its own Card-bound credential; it is not how a person sets a secret.
 
 ### Set a secret with the Connection Hub CLI (super-admin)
 
@@ -196,20 +193,36 @@ walking a person through this; the short form:
   at 2026.10.23.1100 or later with a Connection Hub that has the one-secret
   consent fixes; `uv`.
 
+**Published package** (`connection-hub-cli` 2026.10.23.1100 or later on
+PyPI; it pulls `kdcube-cli` 2026.10.23.1100 or later, which has the secret
+consent):
+
 ```shell
-uv tool install connection-hub-cli          # once 2026.10.23.1100+ is on PyPI; pulls kdcube-cli 2026.10.23.1100+
-# until then, or to match a deployment exactly, run both packages from source
-# at the App Ecosystem and KDCube revisions the deployment runs (the secret
-# consent lives in kdcube-cli; PyPI kdcube-cli before 2026.10.23.1100 lacks it):
-#   CH() { uvx \
-#     --from "git+https://github.com/elenaviter/app-ecosystem@<app-ecosystem commit>#subdirectory=products/connection-hub/packages/connection-hub-cli" \
-#     --with "git+https://github.com/kdcube/kdcube@<kdcube commit>#subdirectory=app/ai-app/src/kdcube-ai-app/kdcube_cli" \
-#     connection-hub "$@"; }
+uv tool install connection-hub-cli
+connection-hub --version
 connection-hub setup --endpoint https://<public address>
 connection-hub host authorize               # browser login as the super-admin; Card for the deployment only
 openssl rand -base64 48 | tr -d '\n' | connection-hub secrets host set <key> \
   --scope bundle --bundle-id <application id> --value-stdin
 connection-hub secrets host metadata <key> --scope bundle --bundle-id <application id>
+```
+
+**From source** (until that release is on PyPI, or to match a deployment
+exactly): run both packages at the App Ecosystem and KDCube revisions the
+deployment runs. The secret consent is handled in `kdcube-cli`, and the
+`kdcube-cli` on PyPI before 2026.10.23.1100 does not have it.
+
+```shell
+CH() { uvx \
+  --from "git+https://github.com/elenaviter/app-ecosystem@<app-ecosystem commit>#subdirectory=products/connection-hub/packages/connection-hub-cli" \
+  --with "git+https://github.com/kdcube/kdcube@<kdcube commit>#subdirectory=app/ai-app/src/kdcube-ai-app/kdcube_cli" \
+  connection-hub "$@"; }
+CH --version
+CH setup --endpoint https://<public address>
+CH host authorize
+openssl rand -base64 48 | tr -d '\n' | CH secrets host set <key> \
+  --scope bundle --bundle-id <application id> --value-stdin
+CH secrets host metadata <key> --scope bundle --bundle-id <application id>
 ```
 
 A platform secret uses `--scope platform` and a `platform.` key; a user's own
@@ -237,7 +250,22 @@ on a Card entered through any other door.
 **When you (an agent) run it.** Always pass `--no-open --no-wait`: without a
 person at the terminal the CLI would wait at its prompt forever. Give the
 person `recovery.authorization_url` from the answer, wait until they say they
-pressed Allow, then rerun the same command with the same `--invocation-id`.
+pressed Allow, then rerun the same command with the same `--invocation-id`
+(the idempotency key; choose it yourself before the first attempt):
+
+```shell
+INV=$(uuidgen)
+connection-hub secrets host metadata <key> --scope bundle --bundle-id <application id> \
+  --invocation-id "$INV" --no-open --no-wait
+# answer: resource_not_consented with recovery.authorization_url -> give the URL to the person
+# after they pressed Allow:
+connection-hub secrets host metadata <key> --scope bundle --bundle-id <application id> \
+  --invocation-id "$INV" --no-open --no-wait
+```
+
+For `set`, the rerun is the identical request: same flags, same
+`--invocation-id`, and the same value on stdin. Use `CH` in place of
+`connection-hub` on the source path.
 Never put the value on the command line, in output or in a file that reaches
 git; pipe it in or let the person type it at the hidden prompt.
 
