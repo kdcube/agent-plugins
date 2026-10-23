@@ -69,6 +69,21 @@ connected app) with the same one-click revocation. Prefer it when the goal is
 conversational access to namespaces (memories, tasks, mail, slack…); prefer
 the manual token for scripts, CI, and scheduled jobs.
 
+## Secrets: the Connection Hub CLI, not a manual token
+
+To set, inspect, read or delete one platform or application secret, a KDCube
+super-admin does not mint a manual token. They run the Connection Hub CLI:
+`connection-hub host authorize` gives it a Card for the deployment only, and
+each secret is added to that Card through a consent page on its first use
+(choose **Once** or **Every time**, then press **Allow `<operation>` once**
+or **always**). An agent
+running the CLI always passes `--no-open --no-wait`, relays
+`recovery.authorization_url` to the person, and reruns the same command with
+the same `--invocation-id` after they approve. The commands and the
+troubleshooting table are in the **kdcube-operator** skill ("Set a secret
+with the Connection Hub CLI") and in
+`repo:kdcube/app/ai-app/docs/service/secrets/manage-a-secret-with-connection-hub-cli-README.md`.
+
 ## Recognizing and fixing failures
 
 | Symptom | Meaning | Fix |
@@ -77,6 +92,7 @@ the manual token for scripts, CI, and scheduled jobs.
 | 403 from the managed guard | resource/operation outside `resource_grants` | recreate the token with the missing grant checked |
 | `needs_connected_account_consent` payload | KDCube accepted YOU, but the user's provider account (Gmail/Slack…) needs connect/reconnect/approval | relay the payload's reason and `connection_hub_url` to the user; retry after they finish |
 | grant visible but calls fail after config change | MCP namespace catalog is consent-time | user reconnects/reapproves the client |
+| `resource_not_consented` with `recovery.authorization_url` | the Card is valid but does not hold this resource yet (for example one secret) | relay the URL; the person approves Once or Every time; rerun the same request with the same `--invocation-id` |
 
 ## What this is not
 
