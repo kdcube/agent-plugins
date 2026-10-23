@@ -1,6 +1,6 @@
 ---
 name: kdcube-operator
-description: "Operate a local KDCube runtime: configure apps via descriptors (CLI or direct YAML edit), apply with reload/refresh, verify with info/status, and read docker + runtime logs. Knows the descriptor system and props/secrets at the platform/bundle/user levels. Activate for any operator task — configure, start/stop/restart, refresh, reload a bundle, or debug a running runtime. Read the real CLI docs via the kdcube-docs skill before acting."
+description: "Operate a local KDCube runtime: configure apps via descriptors (CLI or direct YAML edit), apply with reload/refresh, verify with info/status, and read docker + runtime logs. Knows the descriptor system and props/secrets at the platform/bundle/user levels, and how a super-admin sets one secret with the Connection Hub CLI (`connection-hub secrets host set`, consent page, troubleshooting). Activate for any operator task — configure, start/stop/restart, refresh, reload a bundle, or debug a running runtime. Read the real CLI docs via the kdcube-docs skill before acting."
 ---
 
 # kdcube-operator — drive the KDCube CLI and descriptors
@@ -156,28 +156,135 @@ code, `bundle config apply --reload` for descriptor bundle changes, and
 App-authoring config goes in the app's `config/bundles.template.yaml` (props) and
 `config/bundles.secrets.template.yaml` (secret keys, no values).
 
-For one exact provider-backed secret, an authorized human or automation uses:
+To set, inspect, read or delete one exact provider-backed secret, use the
+Connection Hub CLI: **Set a secret with the Connection Hub CLI (super-admin)**
+below is the default path. `connection-hub host authorize` keeps the
+Card-bound session in the machine's native credential store, so no bearer is
+ever copied to the operator or an agent. Do not ask the person for a bearer
+for this task.
+
+Every secret operation is delegated: Connection Hub checks the caller's live
+Card and its `Once` or `Every time` (`always`) invocation policy on every
+call. The authority covers the exact granted API resources and operations.
+Host login, Docker control, and provider workload identity remain separate
+authorities.
+
+Advanced/protocol reference only: the plain `kdcube secrets
+metadata|set|get|delete <key> --scope platform` commands (bundle targets add
+`--scope bundle --bundle-id <bundle-id>`) speak the same protocol but read a
+delegated bearer from a hidden prompt or the first stdin line. That bearer
+step belongs only to this direct-command path, for automation that already
+holds its own Card-bound credential; it is not how a person sets a secret.
+
+### Set a secret with the Connection Hub CLI (super-admin)
+
+The step-by-step page is
+`repo:kdcube/app/ai-app/docs/service/secrets/manage-a-secret-with-connection-hub-cli-README.md`
+("KDCube Admin: Manage A Secret With The Connection Hub CLI"). Read it before
+walking a person through this; the short form:
+
+- **Who.** Only a KDCube super-admin (platform administrator) can approve.
+  The secret resource is admin-only: the consent page and the Card editor
+  offer it to nobody else.
+- **Before.** The deployment's public HTTPS address (never `localhost` or a
+  workdir); the Connection Hub descriptor's `kdcube-management` service under
+  `connections.delegated_credentials.admission.services` lists
+  `urn:kdcube:management:secret:*:*:*:*:*` (the template default); a platform
+  at 2026.10.23.1100 or later with a Connection Hub that has the one-secret
+  consent fixes; `uv`.
+
+**Published package** (`connection-hub-cli` 2026.10.23.1100 or later on
+PyPI; it pulls `kdcube-cli` 2026.10.23.1100 or later, which has the secret
+consent):
 
 ```shell
-kdcube secrets metadata <key> --scope platform
-kdcube secrets set <key> --scope platform
-kdcube secrets get <key> --scope platform --output <private-file>
-kdcube secrets delete <key> --scope platform
+uv tool install connection-hub-cli
+connection-hub --version
+connection-hub setup --endpoint https://<public address>
+connection-hub host authorize               # browser login as the super-admin; Card for the deployment only
+openssl rand -base64 48 | tr -d '\n' | connection-hub secrets host set <key> \
+  --scope bundle --bundle-id <application id> --value-stdin
+connection-hub secrets host metadata <key> --scope bundle --bundle-id <application id>
 ```
 
-Bundle targets add `--scope bundle --bundle-id <bundle-id>`. These are
-delegated operations: Connection Hub checks the caller's live Card and its
-`Once` or `Always` invocation policy on every call.
+**From source** (until that release is on PyPI, or to match a deployment
+exactly): run both packages at the App Ecosystem and KDCube revisions the
+deployment runs. The secret consent is handled in `kdcube-cli`, and the
+`kdcube-cli` on PyPI before 2026.10.23.1100 does not have it. Pick a KDCube
+commit whose `kdcube_cli` version meets the `kdcube-cli` requirement of the
+`connection-hub-cli` at your App Ecosystem commit (from 2026.10.23.1100 on, a
+KDCube commit at or after that release); otherwise `uv` refuses to resolve
+the two together.
 
-The user provides the Card-bound authority to the operator or agent. KDCube's
-canonical command reads a delegated bearer from a hidden prompt or the first
-stdin line. For Connection Hub's convenience wrapper, run
-`connection-hub host authorize`: OAuth Authorization Code plus PKCE creates a
-Card-bound session in native credential storage, and
-`connection-hub secrets host ...` supplies that session to the same KDCube
-management library. The authority covers the exact granted API resources and
-operations. Host login, Docker control, and provider workload identity remain
-separate authorities.
+```shell
+CH() { uvx \
+  --from "git+https://github.com/elenaviter/app-ecosystem@<app-ecosystem commit>#subdirectory=products/connection-hub/packages/connection-hub-cli" \
+  --with "git+https://github.com/kdcube/kdcube@<kdcube commit>#subdirectory=app/ai-app/src/kdcube-ai-app/kdcube_cli" \
+  connection-hub "$@"; }
+CH --version
+CH setup --endpoint https://<public address>
+CH host authorize
+openssl rand -base64 48 | tr -d '\n' | CH secrets host set <key> \
+  --scope bundle --bundle-id <application id> --value-stdin
+CH secrets host metadata <key> --scope bundle --bundle-id <application id>
+```
+
+A platform secret uses `--scope platform` and a `platform.` key; a user's own
+secret uses `--scope user --user-id <user id>` (plus `--bundle-id` for one
+application). `get` and `delete` take the same target flags; `get` requires
+`--output <new private file>` and never writes the value to the terminal.
+
+**The consent page.** The first use of each secret, and each operation on it
+(`set`, `metadata`, `get`, `delete`), answers `resource_not_consented` with a
+consent. The page names the agent, the operation (for example
+`kdcube.management.secret.value.write`) and the exact secret. The person
+chooses **Once** or **Every time**, then presses the button that reads
+**Allow `<operation>` once** (or **Allow `<operation>` always**), nothing
+else; the CLI then retries the identical request once and prints a receipt
+without the value.
+
+A platform admin can instead add an exact secret to the CLI's Card in
+advance, in Connection Hub's Card editor (Delegated by KDCube): open the
+Card, add the secret with its operations and **Once** or **Every time**, and
+save. This works for a Card entered through the deployment door (what
+`host authorize` creates) or through one exact secret. The editor adds exact
+secrets only: a selector (a `*` scope or key) is refused, and so is a secret
+on a Card entered through any other door.
+
+**When you (an agent) run it.** Always pass `--no-open --no-wait`: without a
+person at the terminal the CLI would wait at its prompt forever. Give the
+person `recovery.authorization_url` from the answer, wait until they say they
+pressed Allow, then rerun the same command with the same `--invocation-id`
+(the idempotency key; choose it yourself before the first attempt):
+
+```shell
+INV=$(uuidgen)
+connection-hub secrets host metadata <key> --scope bundle --bundle-id <application id> \
+  --invocation-id "$INV" --no-open --no-wait
+# answer: resource_not_consented with recovery.authorization_url -> give the URL to the person
+# after they pressed Allow:
+connection-hub secrets host metadata <key> --scope bundle --bundle-id <application id> \
+  --invocation-id "$INV" --no-open --no-wait
+```
+
+For `set`, the rerun is the identical request: same flags, same
+`--invocation-id`, and the same value on stdin. Use `CH` in place of
+`connection-hub` on the source path.
+Never put the value on the command line, in output or in a file that reaches
+git; pipe it in or let the person type it at the hidden prompt.
+
+| You see | What to do |
+| --- | --- |
+| `oauth_issuer_mismatch` at `host authorize` | `connection-hub setup --endpoint https://<public address>` (the issuer's address, not `localhost`), authorize again |
+| `service_resource_not_registered` | the descriptor lacks the secret resource row: a deployment operator adds `urn:kdcube:management:secret:*:*:*:*:*` to `kdcube-management` and reloads Connection Hub |
+| `forbidden` / `delegated credential resource mismatch` | Connection Hub predates the secret consent: update and reload it and rerun, or add the exact secret in the Card editor first |
+| `oauth_client_resource_unreachable` saving a secret in the Card editor | the secret is a selector or another deployment's, the Card came through another door, or Connection Hub predates the editor fix: add one exact secret of this deployment to the CLI's Card; on an older Connection Hub use the CLI consent |
+| `resource_not_consented` | expected on first use: approve on the consent page, then retry |
+| `management_recovery_invalid` | `kdcube-cli` older than 2026.10.23.1100: `uv tool upgrade connection-hub-cli`, rerun |
+| `invalid_grant` / `card_resource_not_covered` | the session could not refresh (platform before 2026.10.23.1100, or the Card was revoked): update the platform; meanwhile `connection-hub host authorize` again |
+| `delegated_access_unknown_resources` on Allow | Connection Hub predates the exact-secret Card fix: update and reload it, rerun |
+| page stays on "Loading this capability" | Connection Hub predates the one-secret consent page fix: update and reload it, rerun to reopen the consent |
+| CLI waits forever after printing the consent | no person at the terminal: use `--no-open --no-wait` |
 
 Use the separate owner-performed export ceremony to reconstruct descriptor
 artifacts from an exact key manifest:
