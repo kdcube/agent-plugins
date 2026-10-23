@@ -210,7 +210,11 @@ connection-hub secrets host metadata <key> --scope bundle --bundle-id <applicati
 **From source** (until that release is on PyPI, or to match a deployment
 exactly): run both packages at the App Ecosystem and KDCube revisions the
 deployment runs. The secret consent is handled in `kdcube-cli`, and the
-`kdcube-cli` on PyPI before 2026.10.23.1100 does not have it.
+`kdcube-cli` on PyPI before 2026.10.23.1100 does not have it. Pick a KDCube
+commit whose `kdcube_cli` version meets the `kdcube-cli` requirement of the
+`connection-hub-cli` at your App Ecosystem commit (from 2026.10.23.1100 on, a
+KDCube commit at or after that release); otherwise `uv` refuses to resolve
+the two together.
 
 ```shell
 CH() { uvx \
