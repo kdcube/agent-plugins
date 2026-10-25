@@ -189,13 +189,16 @@ walking a person through this; the short form:
 - **Before.** The deployment's public HTTPS address (never `localhost` or a
   workdir); the Connection Hub descriptor's `kdcube-management` service under
   `connections.delegated_credentials.admission.services` lists
-  `urn:kdcube:management:secret:*:*:*:*:*` (the template default); a platform
-  at 2026.10.23.1100 or later with a Connection Hub that has the one-secret
-  consent fixes; `uv`.
+  `urn:kdcube:management:secret:*:*:*:*:*` (the template default); the
+  release family KDCube platform and `kdcube-cli` 2026.10.25.0130 or later,
+  the Connection Hub app source and library from the App Ecosystem PB set
+  2026.10.25.0100 or later, and `connection-hub-cli` 2026.10.25.0200 or later.
+  The hosted Hub app supplies the authorization-code exchange fix; installing
+  the CLI alone does not update the deployment's app; `uv`.
 
-**Published package** (`connection-hub-cli` 2026.10.23.1100 or later on
-PyPI; it pulls `kdcube-cli` 2026.10.23.1100 or later, which has the secret
-consent):
+**Published package** (once the release is on PyPI: `connection-hub-cli`
+2026.10.25.0200 or later; it pulls `kdcube-cli` 2026.10.25.0130 or later and
+the App Ecosystem packages at 2026.10.25.0100 or later):
 
 ```shell
 uv tool install connection-hub-cli
@@ -209,12 +212,12 @@ connection-hub secrets host metadata <key> --scope bundle --bundle-id <applicati
 
 **From source** (until that release is on PyPI, or to match a deployment
 exactly): run both packages at the App Ecosystem and KDCube revisions the
-deployment runs. The secret consent is handled in `kdcube-cli`, and the
-`kdcube-cli` on PyPI before 2026.10.23.1100 does not have it. Pick a KDCube
-commit whose `kdcube_cli` version meets the `kdcube-cli` requirement of the
-`connection-hub-cli` at your App Ecosystem commit (from 2026.10.23.1100 on, a
-KDCube commit at or after that release); otherwise `uv` refuses to resolve
-the two together.
+deployment runs. The secret consent is handled in `kdcube-cli`, so its source
+version must meet the Connection Hub CLI's declared dependency floor. Pick a
+KDCube commit whose `kdcube_cli` version meets the `kdcube-cli` requirement of
+the `connection-hub-cli` at your App Ecosystem commit (from the 2026.10.25.0200
+CLI release on, a KDCube commit at or after the 2026.10.25.0130 platform/CLI
+release); otherwise `uv` refuses to resolve the two together.
 
 ```shell
 CH() { uvx \
@@ -280,8 +283,8 @@ git; pipe it in or let the person type it at the hidden prompt.
 | `forbidden` / `delegated credential resource mismatch` | Connection Hub predates the secret consent: update and reload it and rerun, or add the exact secret in the Card editor first |
 | `oauth_client_resource_unreachable` saving a secret in the Card editor | the secret is a selector or another deployment's, the Card came through another door, or Connection Hub predates the editor fix: add one exact secret of this deployment to the CLI's Card; on an older Connection Hub use the CLI consent |
 | `resource_not_consented` | expected on first use: approve on the consent page, then retry |
-| `management_recovery_invalid` | `kdcube-cli` older than 2026.10.23.1100: `uv tool upgrade connection-hub-cli`, rerun |
-| `invalid_grant` / `card_resource_not_covered` | the session could not refresh (platform before 2026.10.23.1100, or the Card was revoked): update the platform; meanwhile `connection-hub host authorize` again |
+| `management_recovery_invalid` | the installed CLI pair predates the secret consent: `uv tool upgrade connection-hub-cli` (2026.10.25.0200 or later), rerun |
+| `invalid_grant` / `card_resource_not_covered` | the session could not refresh (a platform missing the resource-refresh fixes, or the Card was revoked): update the platform; meanwhile `connection-hub host authorize` again |
 | `delegated_access_unknown_resources` on Allow | Connection Hub predates the exact-secret Card fix: update and reload it, rerun |
 | page stays on "Loading this capability" | Connection Hub predates the one-secret consent page fix: update and reload it, rerun to reopen the consent |
 | CLI waits forever after printing the consent | no person at the terminal: use `--no-open --no-wait` |
