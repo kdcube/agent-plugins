@@ -79,6 +79,8 @@ the map below.
 | Bundles descriptor (app registry, sources, config) | `repo:kdcube/app/ai-app/docs/configuration/bundles-descriptor-README.md` |
 | Secrets descriptor (platform secrets) | `repo:kdcube/app/ai-app/docs/configuration/secrets-descriptor-README.md` |
 | How descriptors → props/secrets at ALL levels (platform/bundle/user) | `repo:kdcube/app/ai-app/docs/configuration/service-runtime-configuration-mapping-README.md` |
+| Super-admin sets/reads/deletes ONE secret with the Connection Hub CLI: install, `host authorize`, `secrets host set`, the consent page (Once / Every time, then Allow), troubleshooting codes | `repo:kdcube/app/ai-app/docs/service/secrets/manage-a-secret-with-connection-hub-cli-README.md` (+ `kdcube-operator` skill) |
+| Secret management protocol and plain `kdcube secrets` commands, export/import | `repo:kdcube/app/ai-app/docs/service/secrets/secret-management-cli-README.md`, `repo:kdcube/app/ai-app/docs/service/cicd/delegated-management-service-README.md` |
 | Edit descriptor YAML, then `kdcube refresh` | (operator edits `bundles.yaml`/`bundles.secrets.yaml`/`assembly.yaml`, then reloads — see CLI + quick-start) |
 | Docker logs | `docker compose -f app/ai-app/deployment/docker/all_in_one/docker-compose.yml logs -f <service>` |
 
